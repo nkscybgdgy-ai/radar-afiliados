@@ -8,6 +8,7 @@
 | Banco | PGlite em `.data/pglite` (`DB_DRIVER=pglite`) | PostgreSQL (`postgres`) |
 | Autenticação | login simulado só com e-mail (`AUTH_PROVIDER=dev`) | Supabase Auth (`supabase`) |
 | Cobrança | Asaas simulado (`BILLING_PROVIDER=mock`) | Asaas (`asaas`) |
+| Link de afiliado | link falso `.invalid` (`LINK_PROVIDER=mock`) | Affiliate API da Shopee (`shopee`) |
 | Job diário | `npm run job:daily` | cron da hospedagem chamando `/api/cron/snapshot` |
 | Hospedagem | `npm run dev` / `npm start` | Vercel (ou equivalente) |
 
@@ -89,12 +90,24 @@ Cada serviço abaixo traz: conta, variáveis, o que ainda falta no código e com
   - Conferir uma linha nova em `job_runs` por dia e `product_snapshots` crescendo.
   - Se o job falhar, `job_runs.status = 'error'` guarda o motivo; configurar um alerta (e-mail/Slack) para isso.
 
-## 6. Antes de abrir ao público
+## 6. Gerador de pins: link de afiliado, foto e Pinterest
 
-- [ ] `AUTH_PROVIDER=supabase`, `BILLING_PROVIDER=asaas`, `DB_DRIVER=postgres`, `DATA_SOURCE=shopee` na produção (nenhum mock).
+- **Link real (Shopee):** `LINK_PROVIDER=shopee` + as credenciais da seção 1. Implementar `ShopeeAffiliateLinkProvider` (`src/generator/links.ts`, hoje um stub) com a mutation de link curto da Affiliate API, enviando os `subIds` (`pinterest`, categoria, id do pin). **Confirmar** quantos subIds a API aceita e quais caracteres permite (o mock usa letras minúsculas, números e `_`).
+- **Teste do link:** gerar um pin, abrir o link copiado em janela anônima (deve levar ao produto) e conferir no painel de afiliados da Shopee que o clique aparece com o `subId` do pin.
+- **Foto do produto:** `RawProduct.imageUrl` hoje é `mock:<id>`. Com a API real, baixar a foto (URL da API), embutir no SVG (`src/generator/pin-image.ts`, no lugar da ilustração) e **remover o texto "imagem ilustrativa"**. Confirmar que a API entrega uma URL de imagem utilizável e que o uso da foto em pins é permitido pelos termos do programa.
+- **Hospedagem:** o PNG lê a fonte do disco. `next.config.ts` já inclui `assets/fonts` no pacote (`outputFileTracingIncludes`) e marca `@resvg/resvg-js` como externo. **Testar no deploy real** (`curl` autenticado em `/api/pin/<id>` deve devolver `image/png`): se a plataforma não empacotar o binário nativo, a imagem quebra só lá.
+- **Pinterest (validar com conta real):** (a) o Pinterest aceita o link curto da Shopee como destino do pin? Se rejeitar ou penalizar, avaliar link direto com parâmetros de afiliado; (b) limites de título/descrição (o app usa 100/500, de memória); (c) aviso de afiliado: o app inclui o texto e `#publi` em toda legenda; revisar com as regras do Pinterest e do CONAR.
+- **Publicação automática:** fora do escopo. Se um dia for feita, será uma interface `PinterestPublisher` (API do Pinterest exige app aprovado).
+- **Legenda por LLM (opcional, pago):** implementar `CaptionGenerator` com a API do Claude atrás de uma variável própria, com limite de custo por usuário. Não fazer antes do lançamento.
+- **Limite grátis:** `FREE_PINS_PER_DAY` (padrão 1).
+
+## 7. Antes de abrir ao público
+
+- [ ] `AUTH_PROVIDER=supabase`, `BILLING_PROVIDER=asaas`, `DB_DRIVER=postgres`, `DATA_SOURCE=shopee`, `LINK_PROVIDER=shopee` na produção (nenhum mock).
 - [ ] `/checkout/simulado/...` responde 404 (só existe com `BILLING_PROVIDER=mock`).
 - [ ] Nenhum segredo de dev em produção: trocar `AUTH_SECRET`, `CRON_SECRET`, `ASAAS_WEBHOOK_TOKEN`.
 - [ ] Termos de uso, política de privacidade e aviso de afiliado/comissão nas páginas públicas.
-- [ ] Limites do plano grátis revisados (`FREE_RADAR_LIMIT`, `FREE_SHEETS_PER_DAY`) e preço final (`PLAN_PRICE_CENTS`).
+- [ ] `LINK_PROVIDER=shopee`: links reais funcionando; texto "imagem ilustrativa" removido do pin.
+- [ ] Limites do plano grátis revisados (`FREE_RADAR_LIMIT`, `FREE_SHEETS_PER_DAY`, `FREE_PINS_PER_DAY`) e preço final (`PLAN_PRICE_CENTS`).
 - [ ] Calibração dos pesos do score com dados reais (`src/domain/scoring/config.ts` e `docs/score.md`).
 - [ ] Teste ponta a ponta com dinheiro real: assinar, ser cobrado, cancelar.

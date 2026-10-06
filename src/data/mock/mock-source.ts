@@ -10,7 +10,8 @@ import {
 } from "@/domain/types";
 import type { ListProductsQuery, ProductSource } from "../source";
 import { MOCK_NAMES } from "./catalog";
-import { hashString, mulberry32 } from "./rng";
+import { hashString } from "@/lib/hash";
+import { mulberry32 } from "./rng";
 
 const SEED = 20260101;
 const HISTORY_DAYS = 30;
@@ -59,7 +60,8 @@ function buildEntries(shops: RawShop[]): MockEntry[] {
         id,
         name,
         category,
-        imageUrl: `https://picsum.photos/seed/${id}/600/600`,
+        imageUrl: `mock:${id}`,
+        productUrl: `https://shopee.com.br/produto-demo/${id}`,
         priceCents,
         commissionRate,
         salesTotal: Math.round(dailyBase * between(rnd, 60, 400)),

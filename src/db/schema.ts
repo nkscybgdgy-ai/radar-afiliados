@@ -68,3 +68,31 @@ export const jobRuns = pgTable("job_runs", {
   detail: text("detail"),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Pins gerados. Um por usuário/produto/dia (trocar o tom no mesmo dia atualiza a linha).
+ * Guarda um retrato do produto no momento da geração: a imagem é regenerada sempre igual a
+ * partir desta linha (rota /api/pin/[id]), sem serviço de armazenamento.
+ */
+export const generatedPins = pgTable(
+  "generated_pins",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id),
+    productId: text("product_id").notNull(),
+    day: date("day").notNull(),
+    tone: text("tone").notNull(),
+    affiliateUrl: text("affiliate_url").notNull(),
+    subIds: jsonb("sub_ids").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    hashtags: jsonb("hashtags").notNull(),
+    productName: text("product_name").notNull(),
+    category: text("category").notNull(),
+    priceCents: integer("price_cents").notNull(),
+    ratingX10: integer("rating_x10").notNull(),
+    ratingCount: integer("rating_count").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("generated_pins_user_product_day_idx").on(t.userId, t.productId, t.day)],
+);

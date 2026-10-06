@@ -31,6 +31,7 @@ export function Header({ user, plan }: { user: SessionUser | null; plan?: Plan }
           {user ? (
             <>
               <Link href="/radar" className="hover:text-brand">Radar</Link>
+              <Link href="/gerador" className="hover:text-brand">Gerador</Link>
               <Link href="/conta" className="hover:text-brand">
                 Conta {plan === "pro" && <span className="ml-1 rounded bg-brand px-1.5 py-0.5 text-xs text-white">PRO</span>}
               </Link>

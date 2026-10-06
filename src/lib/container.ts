@@ -2,6 +2,8 @@ import { createAuthProvider, type AuthProvider } from "@/auth";
 import { BillingService } from "@/billing/billing.service";
 import { createBillingProvider } from "@/billing";
 import { createProductSource, type ProductSource } from "@/data";
+import { GeneratorService } from "@/generator/generator.service";
+import { createLinkProvider } from "@/generator/links";
 import { createDb, type Db, type DbHandle } from "@/db";
 import { EntitlementsService } from "@/entitlements/entitlements.service";
 import { SnapshotJob } from "@/jobs/daily-snapshot";
@@ -17,6 +19,7 @@ export interface Container {
   radar: RadarService;
   entitlements: EntitlementsService;
   snapshotJob: SnapshotJob;
+  generator: GeneratorService;
   close(): Promise<void>;
 }
 
@@ -29,19 +32,21 @@ export async function buildContainer(
   const handle: DbHandle = await createDb(env, { inMemory: opts.inMemoryDb });
   const source = createProductSource(env);
   const now = opts.now ?? (() => new Date());
+  const radar = new RadarService(source);
   return {
     env,
     db: handle.db,
     auth: createAuthProvider(env, handle.db),
     billing: new BillingService(handle.db, createBillingProvider(env), env.PLAN_PRICE_CENTS, now),
     source,
-    radar: new RadarService(source),
+    radar,
     entitlements: new EntitlementsService(
       handle.db,
       { freeRadarLimit: env.FREE_RADAR_LIMIT, freeSheetsPerDay: env.FREE_SHEETS_PER_DAY },
       now,
     ),
     snapshotJob: new SnapshotJob(handle.db, source, now),
+    generator: new GeneratorService(handle.db, radar, createLinkProvider(env), env.FREE_PINS_PER_DAY, now),
     close: handle.close,
   };
 }

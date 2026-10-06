@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function Precos() {
   const [c, user] = await Promise.all([getContainer(), getCurrentUser()]);
   const plan = user ? await c.billing.planFor(user.id) : undefined;
-  const { FREE_RADAR_LIMIT, FREE_SHEETS_PER_DAY, PLAN_PRICE_CENTS } = c.env;
+  const { FREE_RADAR_LIMIT, FREE_SHEETS_PER_DAY, FREE_PINS_PER_DAY, PLAN_PRICE_CENTS } = c.env;
   return (
     <Shell user={user} plan={plan}>
       <h1 className="text-center text-3xl font-bold">Planos</h1>
@@ -21,6 +21,7 @@ export default async function Precos() {
             <li>✓ Top {FREE_RADAR_LIMIT} do radar</li>
             <li>✓ {FREE_SHEETS_PER_DAY} fichas de produto por dia</li>
             <li>✓ Score de oportunidade</li>
+            <li>✓ {FREE_PINS_PER_DAY} pin por dia (link + legenda + imagem)</li>
             <li className="text-stone-400">✗ Detalhamento do score</li>
             <li className="text-stone-400">✗ Radar completo e filtros</li>
           </ul>
@@ -32,6 +33,7 @@ export default async function Precos() {
             <li>✓ Radar completo, todas as categorias</li>
             <li>✓ Fichas ilimitadas</li>
             <li>✓ Detalhamento do score</li>
+            <li>✓ Pins ilimitados</li>
             <li>✓ Pix, boleto ou cartão</li>
           </ul>
           <Link href={user ? "/conta" : "/login"} className="mt-6 block rounded-lg bg-brand py-2 text-center font-semibold text-white hover:bg-brand-dark">

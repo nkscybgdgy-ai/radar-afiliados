@@ -10,6 +10,8 @@ const EnvSchema = z.object({
   AUTH_PROVIDER: z.enum(["dev", "supabase"]).default("dev"),
   BILLING_PROVIDER: z.enum(["mock", "asaas"]).default("mock"),
   DB_DRIVER: z.enum(["pglite", "postgres"]).default("pglite"),
+  /** Gerador de link de afiliado (a API da Shopee é gratuita, mas só entra quando houver acesso). */
+  LINK_PROVIDER: z.enum(["mock", "shopee"]).default("mock"),
 
   /** Regra do projeto: nenhum serviço que gere custo até o lançamento. */
   ALLOW_PAID_SERVICES: bool,
@@ -18,6 +20,8 @@ const EnvSchema = z.object({
   PLAN_PRICE_CENTS: z.coerce.number().int().positive().default(3900),
   FREE_RADAR_LIMIT: z.coerce.number().int().positive().default(10),
   FREE_SHEETS_PER_DAY: z.coerce.number().int().positive().default(5),
+  /** Pins (link + legenda + imagem) por dia no plano grátis. Pro é ilimitado. */
+  FREE_PINS_PER_DAY: z.coerce.number().int().positive().default(1),
 
   PGLITE_DIR: z.string().default(".data/pglite"),
   DATABASE_URL: z.string().optional(),

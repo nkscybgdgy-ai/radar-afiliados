@@ -18,7 +18,7 @@ Plataforma de inteligência para afiliados da Shopee. Nicho inicial: **produtos 
 | 2 | Ficha do produto: preço, % comissão, comissão em R$, vendas, nota da loja, avaliações | **MVP** |
 | 3 | Score de oportunidade (0–100) | **MVP** |
 | 4 | Alertas (disparo de vendas, aumento de comissão) | Pós-MVP |
-| 5 | Gerador de link de afiliado + legenda + imagem para Pinterest | Pós-MVP |
+| 5 | Gerador de link de afiliado + legenda + imagem para Pinterest | **Implementado local** (link mock, legenda por templates, PNG). Publicação automática no Pinterest: fora do escopo |
 | 6 | **Concorrência entre afiliados** (quantos afiliados já divulgam o produto; entra no score como penalidade/componente) | Evolução futura. Depende de fonte de dados que ainda não existe na API oficial; não estimar por scraping |
 
 MVP = só Shopee, só um nicho, funcionalidades 1, 2 e 3.
@@ -49,6 +49,7 @@ MVP = só Shopee, só um nicho, funcionalidades 1, 2 e 3.
   | `Db` (Drizzle) | PGlite (`.data/pglite`) | PostgreSQL | `DB_DRIVER` |
   | `AuthProvider` | login simulado só com e-mail | Supabase Auth | `AUTH_PROVIDER` |
   | `BillingProvider` | Asaas simulado (checkout local) | Asaas | `BILLING_PROVIDER` |
+  | `AffiliateLinkProvider` | link falso `.invalid` | Affiliate API da Shopee (stub) | `LINK_PROVIDER` |
   | Job diário | `npm run job:daily` | cron chama `/api/cron/snapshot` | `CRON_SECRET` |
 
 - **Trava no código:** `loadEnv` (`src/lib/env.ts`) recusa subir com auth/cobrança/banco reais se `ALLOW_PAID_SERVICES` não for `true`. Não contornar; não commitar `ALLOW_PAID_SERVICES=true`.
@@ -82,6 +83,7 @@ MVP = só Shopee, só um nicho, funcionalidades 1, 2 e 3.
     ├── auth/                    # AuthProvider: dev-auth, supabase-auth (stub)
     ├── billing/                 # BillingProvider: mock-billing, asaas-billing; BillingService
     ├── entitlements/            # limites do plano grátis x pro
+    ├── generator/               # GeneratorService, links (mock/shopee), pin-image (SVG→PNG)
     ├── jobs/                    # SnapshotJob, dailySalesFromSnapshots
     ├── services/                # RadarService (radar e ficha)
     ├── components/ · lib/       # UI; env, container (monta tudo), session, format
@@ -91,11 +93,20 @@ Regra de dependência: `app → services/billing/entitlements/jobs → (data, do
 
 ## Estado da implementação
 
-Pronto e testado (`npm test`: 57 testes; `npm run test:e2e`: 3 fluxos): radar com filtro por categoria e ordenação (score / mais vendidos / em alta), ficha do produto com score e detalhamento, plano grátis (top 10, 5 fichas/dia, detalhamento bloqueado) x Pro (tudo liberado), login simulado, assinatura simulada (Pix/boleto/cartão), webhooks idempotentes, job diário.
-Não feito: alertas, gerador de link/legenda/Pinterest, integrações reais, coleta de CPF/CNPJ para o Asaas, páginas legais.
+Pronto e testado (`npm test`: 74 testes; `npm run test:e2e`: 4 fluxos): radar com filtro por categoria e ordenação (score / mais vendidos / em alta), ficha do produto com score e detalhamento, plano grátis (top 10, 5 fichas/dia, detalhamento bloqueado) x Pro (tudo liberado), login simulado, assinatura simulada (Pix/boleto/cartão), webhooks idempotentes, job diário, **gerador de pins** (ver abaixo).
+Não feito: alertas, publicação automática no Pinterest, integrações reais, coleta de CPF/CNPJ para o Asaas, páginas legais.
 
 Comandos: `npm run dev` · `npm run build && npm start` · `npm test` · `npm run typecheck` · `npm run test:e2e` · `npm run job:daily` · `npm run db:generate`.
 Detalhes da camada de dados e do score continuam nas seções abaixo e em `docs/score.md`. O score é **sempre calculado contra o nicho inteiro** e só depois filtrado por categoria.
+
+## Gerador de pins (funcionalidade 5)
+
+Da ficha do produto: **link de afiliado + legenda + imagem 1000×1500 (2:3)** para o Pinterest. Publicação é **manual** (baixar, copiar). Sem publicação automática.
+
+- **Limite:** plano grátis `FREE_PINS_PER_DAY` (padrão **1**) produtos distintos por dia; trocar o tom do mesmo produto no mesmo dia **não** gasta outro. Pro ilimitado. Checagem protegida por `pg_advisory_xact_lock` por usuário.
+- **Link:** interface `AffiliateLinkProvider`. Mock gera `https://afiliado-demo.invalid/...` (TLD reservado, nunca resolve) com `subIds` `[pinterest, categoria, id-do-pin]` para saber qual pin vendeu. O link do dia é reaproveitado ao trocar o tom.
+- **Legenda:** só **templates** (`src/domain/generator/caption.ts`, 3 tons), determinística, sem custo. Título ≤ 100 e descrição ≤ 500 caracteres. **Regras de conteúdo (testadas):** sempre inclui o aviso de afiliado e `#publi`; só afirma nota/avaliações/vendas quando os dados sustentam (nota ≥ 4,5 com ≥ 10 avaliações; vendas ≥ 50, arredondadas **para baixo**); nunca promete "frete grátis", "melhor do Brasil" etc.; **a comissão nunca aparece** na legenda nem na imagem. Um gerador por LLM seria outra implementação de `CaptionGenerator` (pago: só no `LANCAMENTO.md`).
+- **Imagem:** SVG → PNG com `@resvg/resvg-js` e fonte DejaVu embutida em `assets/fonts` (não depende de fontes do sistema). Rota `/api/pin/[id]` regenera o PNG a partir da linha salva em `generated_pins` (snapshot do produto no momento da geração), **só para o dono**. Sem serviço de armazenamento. Hoje desenha uma ilustração ("imagem ilustrativa"); com dados reais entra a foto do produto.
 
 ## Interface da camada de dados (contrato)
 

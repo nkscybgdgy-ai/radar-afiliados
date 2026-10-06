@@ -55,3 +55,33 @@ test("assinatura simulada: Pix → pago → pro; vencida → grátis", async ({ 
   await expect(page.getByText("Plano: Grátis")).toBeVisible();
   await expect(page.getByText(/Pagamento em atraso/)).toBeVisible();
 });
+
+test("gerador: 1 pin/dia no grátis, imagem PNG, só o dono acessa", async ({ page, playwright, baseURL }) => {
+  await login(page, email());
+  const links = await page.locator("tbody a").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute("href")!));
+  const productId = (i: number) => links[i]!.split("/").pop()!;
+
+  await page.goto(`/gerador/${productId(0)}`);
+  await page.getByRole("button", { name: "Gerar pin" }).click();
+  const img = page.locator("img[alt^='Pin:']");
+  await expect(img).toBeVisible();
+  await expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(1000);
+  await expect(page.getByText(/#publi/).first()).toBeVisible();
+  await expect(page.getByText("Link de demonstração")).toBeVisible();
+
+  const src = (await img.getAttribute("src"))!;
+  const own = await page.request.get(src);
+  expect(own.status()).toBe(200);
+  expect(own.headers()["content-type"]).toBe("image/png");
+  const anon = await playwright.request.newContext({ baseURL });
+  expect((await anon.get(src)).status()).toBe(401);
+
+  // trocar o tom do mesmo produto não gasta outro pin
+  await page.selectOption("select[name=tone]", "lista");
+  await page.getByRole("button", { name: "Gerar de novo" }).click();
+  await expect(page.getByText("1/1 pin por dia")).toBeVisible();
+
+  // outro produto: limite do dia
+  await page.goto(`/gerador/${productId(1)}`);
+  await expect(page.getByText("Você já usou o pin de hoje.")).toBeVisible();
+});

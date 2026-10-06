@@ -65,6 +65,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <span className="font-medium">{shop.name}</span> · nota da loja {shop.rating.toFixed(1)} ★ · {BADGE[shop.badge]}
             </div>
           )}
+          <Link href={`/gerador/${p.id}`} className="mt-5 inline-block rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">Gerar pin para o Pinterest</Link>
           {p.source === "mock" && <p className="mt-3 text-xs text-amber-700">Dados de demonstração.</p>}
         </div>
 

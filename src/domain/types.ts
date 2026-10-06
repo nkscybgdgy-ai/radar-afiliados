@@ -34,7 +34,10 @@ export const RawProductSchema = z.object({
   id: z.string(),
   name: z.string(),
   category: z.enum(HOME_CATEGORIES),
+  /** URL da foto. `mock:<id>` = sem foto (o gerador desenha uma ilustração). */
   imageUrl: z.string(),
+  /** Página do produto na loja (origem do link de afiliado). */
+  productUrl: z.string().url(),
   priceCents: z.number().int().positive(),
   commissionRate: z.number().min(0).max(1),
   /** Vendas acumuladas informadas pela fonte. */

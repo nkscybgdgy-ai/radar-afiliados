@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { BILLING_TYPES, type BillingType } from "@/billing";
 import { MOCK_WEBHOOK_TOKEN } from "@/billing/mock-billing";
+import { TONES, type Tone } from "@/domain/generator/caption";
 import { getContainer } from "@/lib/container";
 import { clearSessionCookie, requireUser, setSessionCookie } from "@/lib/session";
 
@@ -63,4 +64,16 @@ export async function simulatePaymentAction(formData: FormData) {
       : { id, event, dateCreated: new Date().toISOString(), payment: { id: `pay_sim_${id}`, subscription: subId } };
   await c.billing.handleWebhook((n) => (n.toLowerCase() === "asaas-access-token" ? MOCK_WEBHOOK_TOKEN : null), body);
   redirect("/conta?ok=1");
+}
+
+export async function generatePinAction(formData: FormData) {
+  const user = await requireUser();
+  const c = await getContainer();
+  const productId = String(formData.get("productId"));
+  const tone = String(formData.get("tone"));
+  if (!(TONES as readonly string[]).includes(tone)) redirect(`/gerador/${productId}`);
+  const plan = await c.billing.planFor(user.id);
+  const r = await c.generator.generate(user.id, plan, productId, tone as Tone);
+  if (r.status === "not_found") redirect("/gerador");
+  redirect(`/gerador/${productId}${r.status === "limit" ? "?limite=1" : ""}`);
 }
