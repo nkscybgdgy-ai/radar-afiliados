@@ -3,6 +3,10 @@ import { claimsFor, generateCaption, LIMITS, DISCLOSURE, TONES, type CaptionInpu
 import { buildPinSvg, renderPinPng, wrapText, PIN_HEIGHT, PIN_WIDTH } from "./pin-image";
 import { MockAffiliateLinkProvider, ShopeeAffiliateLinkProvider } from "./links";
 import { buildContainer, type Container } from "@/lib/container";
+import { Resvg } from "@resvg/resvg-js";
+import { join } from "node:path";
+import { buildPinSvgByStyle, STYLE_IDS } from "./pin-design";
+import { cta, headlineFor, socialProof } from "./pin-design/common";
 
 const base: CaptionInput = {
   productId: "coz-001", name: "Kit Potes Herméticos de Vidro 10 Peças", category: "cozinha",
@@ -157,5 +161,44 @@ describe("regra de 'em alta' (claimsFor)", () => {
     expect(claimsFor({ ...base, sales30d: 40, sales7d: 30 }).trendPct).toBeUndefined(); // < 50 em 30d
     expect(claimsFor({ ...base, sales30d: 300, sales7d: 15 }).trendPct).toBeUndefined(); // < 20 em 7d
     expect(claimsFor({ ...base, sales30d: 1500 }).trendPct).toBeUndefined(); // sem dado de 7d
+  });
+});
+
+describe("pin: título por benefício, prova social e botão", () => {
+  const input = { productId: "coz-011", productName: "Balança Digital de Cozinha 10kg", category: "cozinha" as const, priceCents: 24120, rating: 4.7, ratingCount: 1583, sales30d: 1505, sales7d: 504, photo: null };
+
+  it("título vem do tipo de produto; sem palavra-chave usa a categoria", () => {
+    expect(headlineFor("cozinha", "x", "Balança Digital")).toBe("Receitas na medida certa");
+    expect(headlineFor("organizacao", "x", "Organizador de Geladeira")).toBe("Tudo no seu lugar");
+    expect(headlineFor("cozinha", "x", "Coisa sem palavra-chave")).toMatch(/cozinha|dia|Achado/i);
+  });
+  it("prova social só com vendas ≥ 50, arredondada para baixo", () => {
+    expect(socialProof(input)).toBe("+1.500 vendidos em 30 dias");
+    expect(socialProof({ ...input, sales30d: 30 })).toBeNull();
+  });
+  it("'em alta' para o comprador não mostra percentual nem gráfico", () => {
+    for (const style of ["emalta", "emaltaclaro"] as const) {
+      const svg = buildPinSvgByStyle(style, input);
+      expect(svg).toContain("+1.500 vendidos em 30 dias");
+      const visible = [...svg.matchAll(/>([^<]+)</g)].map((m) => m[1]).join(" "); // só o texto que aparece
+      expect(visible).not.toContain("%");
+      expect(svg).not.toContain("polyline");
+      expect(visible).not.toMatch(/ritmo|semana|média/i);
+      expect(visible.toLowerCase()).not.toContain("comiss");
+    }
+  });
+  it("todos os estilos geram PNG 1000×1500 com a fonte embutida", () => {
+    for (const style of STYLE_IDS) {
+      const svg = buildPinSvgByStyle(style, input);
+      const png = new Resvg(svg, { font: { fontFiles: ["Poppins_500Medium", "Poppins_600SemiBold", "Poppins_700Bold", "Poppins_800ExtraBold", "Pacifico_400Regular"].map((f) => join(process.cwd(), "assets/fonts", `${f}.ttf`)), loadSystemFonts: false, defaultFontFamily: "Poppins" } }).render();
+      expect([png.width, png.height]).toEqual([1000, 1500]);
+      expect(png.asPng().length).toBeGreaterThan(20_000);
+    }
+  });
+  it("botão: o texto fica dentro da pílula (centro à esquerda da seta)", () => {
+    const svg = cta(70, 1340, { fill: "#000", text: "#fff", w: 380, h: 90 });
+    const cx = Number(/<text x="([\d.]+)"/.exec(svg)![1]);
+    expect(cx).toBeGreaterThan(70 + 100);
+    expect(cx).toBeLessThan(70 + 380 - 100);
   });
 });

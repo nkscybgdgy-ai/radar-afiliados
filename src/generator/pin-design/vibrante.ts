@@ -1,9 +1,9 @@
-import { arrowRight, claimInline, claimLines, esc, FOOTER, headlineFor, PALETTE, photoLayer, priceParts, SHADOW_FILTER, svgDoc, wrapText, type PinDesignInput } from "./common";
+import { claimInline, cta, claimLines, esc, FOOTER, headlineFor, PALETTE, photoLayer, priceParts, SHADOW_FILTER, svgDoc, wrapText, type PinDesignInput } from "./common";
 
 /** Foto até a borda, base colorida inclinada, título branco enorme e selo de preço amarelo. */
 export function vibrante(i: PinDesignInput): string {
   const p = PALETTE[i.category];
-  const head = wrapText(headlineFor(i.category, i.productId), 92, 860, 2, 0.52);
+  const head = wrapText(headlineFor(i.category, i.productId, i.productName), 92, 860, 2, 0.52);
   const price = priceParts(i.priceCents);
   const lines = claimLines(i);
   const headY = 1090;
@@ -21,9 +21,7 @@ ${photoLayer(i.photo, "ph", 0, 0, 1000, 1000, 0, "tl")}
 <text x="790" y="822" text-anchor="middle" fill="#1F2937" font-weight="800"><tspan font-size="34" font-weight="700">R$ </tspan><tspan font-size="${big}">${esc(price.int)}</tspan><tspan font-size="40" font-weight="700" dy="-34">,${price.dec}</tspan></text>
 ${head.map((l, k) => `<text x="70" y="${headY + k * 102}" font-size="92" font-weight="800" fill="#ffffff">${esc(l)}</text>`).join("")}
 ${lines.map((c, k) => claimInline(c, 70, claimY + k * 48, 32, "#ffffff", "#FFD60A").svg).join("")}
-<rect x="70" y="1345" width="340" height="92" rx="46" fill="#ffffff"/>
-<text x="205" y="1405" font-size="38" font-weight="800" text-anchor="middle" fill="${p.deep}">Ver oferta</text>
-${arrowRight(325, 1391, 42, p.deep, 6)}
+${cta(70, 1345, { fill: "#ffffff", text: p.deep, size: 38, w: 390, h: 92 })}
 <text x="70" y="1475" font-size="24" font-weight="500" fill="#ffffff" fill-opacity="0.85">${FOOTER}</text>`;
   return svgDoc(body, defs);
 }

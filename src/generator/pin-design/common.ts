@@ -5,13 +5,14 @@ import { CATEGORY_LABELS, type HomeCategory } from "@/domain/types";
 export const W = 1000;
 export const H = 1500; // 2:3, proporção recomendada do Pinterest
 
-export const STYLE_IDS = ["minimalista", "vibrante", "achadinho", "emalta"] as const;
+export const STYLE_IDS = ["minimalista", "vibrante", "achadinho", "emalta", "emaltaclaro"] as const;
 export type PinStyle = (typeof STYLE_IDS)[number];
 export const STYLE_LABELS: Record<PinStyle, string> = {
   minimalista: "Minimalista claro",
   vibrante: "Colorido vibrante",
   achadinho: "Achadinho",
-  emalta: "Em alta",
+  emalta: "Em alta (escuro)",
+  emaltaclaro: "Em alta (claro)",
 };
 
 /** Foto embutida (data URI). `null` = foto provisória desenhada (só em demonstração). */
@@ -29,8 +30,6 @@ export interface PinDesignInput {
   sales30d: number;
   /** Vendas dos últimos 7 dias (habilita a regra de "em alta"). */
   sales7d?: number;
-  /** Vendas por dia, mais antigo primeiro (gráfico do estilo "em alta"). */
-  salesSeries?: number[];
   photo: Photo | null;
 }
 
@@ -81,7 +80,27 @@ const HEADLINES: Record<HomeCategory, string[]> = {
   banheiro: ["Banheiro organizado", "Banheiro mais prático", "Tudo à mão no banho"],
   decoracao: ["Dê um up na casa", "Casa mais aconchegante", "Decoração que encanta"],
 };
-export const headlineFor = (category: HomeCategory, productId: string) => {
+/** Benefício por tipo de produto (palavra-chave no nome), em linguagem suave: sem promessas que não dá para provar. */
+const KEYWORD_HEADLINES: [RegExp, string][] = [
+  [/hermetic|pote/, "Tudo bem guardado"],
+  [/organizador|colmeia|caixa organizadora/, "Tudo no seu lugar"],
+  [/cabide|armario/, "Guarda-roupa em ordem"],
+  [/escorredor/, "Louça no lugar, bancada livre"],
+  [/faca|ralador|descascador|espremedor/, "Preparo mais prático"],
+  [/balanca/, "Receitas na medida certa"],
+  [/fritadeira|air fryer/, "Mais praticidade na cozinha"],
+  [/mop|rodo|vassoura|esponja|pano|escova/, "Limpeza mais prática"],
+  [/tapete|box|cortina de box/, "Banho mais organizado"],
+  [/luminaria|fita led|abajur/, "Luz que deixa a casa aconchegante"],
+  [/almofada|manta/, "Sofá mais aconchegante"],
+  [/vaso|quadro|espelho|relogio|porta-retrato|planta/, "Um charme pro seu canto"],
+];
+const stripAccents = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+export const headlineFor = (category: HomeCategory, productId: string, productName = "") => {
+  const n = stripAccents(productName);
+  const hit = KEYWORD_HEADLINES.find(([re]) => re.test(n));
+  if (hit) return hit[1];
   const list = HEADLINES[category];
   return list[hashString(productId) % list.length]!;
 };
@@ -145,7 +164,7 @@ export const PALETTE: Record<HomeCategory, { strong: string; deep: string; soft:
 };
 
 export const SHADOW_FILTER = (id: string, dy = 14, blur = 16, opacity = 0.28) =>
-  `<filter id="${id}" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="${dy}" stdDeviation="${blur}" flood-color="#000000" flood-opacity="${opacity}"/></filter>`;
+  `<filter id="${id}" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="${dy}" stdDeviation="${blur}" flood-color="#000000" flood-opacity="${opacity}"/></filter>`;
 
 /**
  * Camada da foto: recorta com cantos arredondados e preenche (slice) a área.
@@ -167,6 +186,31 @@ export function photoLayer(photo: Photo | null, id: string, x: number, y: number
   <rect x="${cx - 0.19 * s * k}" y="${cy - 0.02 * s - 0.29 * s * k}" width="${0.38 * s * k}" height="${0.08 * s * k}" rx="${0.02 * s * k}" fill="#8A94A6"/>
   <rect x="${cx - 0.1 * s * k}" y="${cy - 0.02 * s - 0.08 * s * k}" width="${0.2 * s * k}" height="${0.14 * s * k}" rx="${0.02 * s * k}" fill="#CBD2DE"/>
   <text x="${x + 28}" y="${label === "tl" ? y + 44 : y + h - 24}" font-family="Poppins" font-weight="600" font-size="20" letter-spacing="1" fill="#4B5563" fill-opacity="0.8">FOTO PROVISÓRIA</text></g>`;
+}
+
+/** Prova social simples para o comprador: só vendas (regra do claimsFor, arredondadas para baixo). */
+export function socialProof(i: PinDesignInput): string | null {
+  const v = claims(i).sales30d;
+  return v ? `+${new Intl.NumberFormat("pt-BR").format(v)} vendidos em 30 dias` : null;
+}
+
+/** Chama desenhada (a fonte não tem emoji). Caixa de 24×24 escalada por `k`. */
+export const flame = (x: number, y: number, k: number, fill: string) =>
+  `<path transform="translate(${x} ${y}) scale(${k})" d="M12 1C12 1 5 7.5 5 14a7 7 0 0 0 14 0c0-2.4-1-4.6-2.4-6.2-.2 2-1.2 3.4-2.6 3.8C13.4 8.2 12.8 4 12 1z" fill="${fill}"/>`;
+
+/**
+ * Botão "Ver oferta": largura fixa, texto centrado na área da esquerda e seta na direita.
+ * Posições determinísticas (sem depender de medir a fonte): o texto nunca sai do botão.
+ */
+export function cta(x: number, y: number, o: { fill: string; text: string; size?: number; w?: number; h?: number }): string {
+  const size = o.size ?? 36;
+  const w = o.w ?? 380;
+  const h = o.h ?? 90;
+  const textCx = x + (w - 70) / 2;
+  const ay = y + h / 2;
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="${o.fill}"/>
+<text x="${textCx}" y="${ay + size * 0.35}" font-size="${size}" font-weight="800" text-anchor="middle" fill="${o.text}">Ver oferta</text>
+${arrowRight(x + w - 78, ay, 36, o.text, 6)}`;
 }
 
 export const CATEGORY_LABELS_UP: Record<HomeCategory, string> = Object.fromEntries(Object.entries(CATEGORY_LABELS).map(([k, v]) => [k, v.toUpperCase()])) as Record<HomeCategory, string>;

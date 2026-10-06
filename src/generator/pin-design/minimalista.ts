@@ -1,10 +1,10 @@
 import { CATEGORY_LABELS } from "@/domain/types";
-import { arrowRight, claimInline, claimLines, esc, FOOTER, headlineFor, PALETTE, photoLayer, priceParts, priceText, SHADOW_FILTER, svgDoc, wrapText, type PinDesignInput } from "./common";
+import { claimInline, cta, claimLines, esc, FOOTER, headlineFor, PALETTE, photoLayer, priceParts, priceText, SHADOW_FILTER, svgDoc, wrapText, type PinDesignInput } from "./common";
 
 /** Fundo creme, foto grande com cantos suaves, preço em pílula, tipografia limpa. */
 export function minimalista(i: PinDesignInput): string {
   const p = PALETTE[i.category];
-  const head = wrapText(headlineFor(i.category, i.productId), 82, 860, 2, 0.52);
+  const head = wrapText(headlineFor(i.category, i.productId, i.productName), 82, 860, 2, 0.52);
   const price = priceParts(i.priceCents);
   const lines = claimLines(i);
   const photoH = head.length === 1 ? 860 : 780;
@@ -32,9 +32,7 @@ ${priceText(750, photoBottom + 22, price, 70, "#ffffff")}
 ${head.map((l, k) => `<text x="70" y="${headY + k * 94}" font-size="82" font-weight="800" fill="#1F2937">${esc(l)}</text>`).join("")}
 <text x="70" y="${afterHead + 52}" font-size="32" font-weight="500" fill="#6B7280">${esc(name)}</text>
 ${chips}
-<rect x="70" y="1330" width="320" height="86" rx="43" fill="#1F2937"/>
-<text x="185" y="1385" font-size="34" font-weight="700" text-anchor="middle" fill="#ffffff">Ver oferta</text>
-${arrowRight(298, 1373, 40, "#ffffff", 5)}
+${cta(70, 1330, { fill: "#1F2937", text: "#ffffff", size: 34, w: 360, h: 86 })}
 <text x="70" y="1464" font-size="24" font-weight="500" fill="#9CA3AF">${FOOTER}</text>`;
   return svgDoc(body, SHADOW_FILTER("sh", 12, 14, 0.25));
 }

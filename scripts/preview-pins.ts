@@ -25,7 +25,7 @@ for (const id of ids) {
   const s7 = series.slice(-7).reduce((a, b) => a + b, 0);
   let photo: Photo | null = null;
   if (photosDir) photo = { dataUri: `data:image/jpeg;base64,${readFileSync(join(photosDir, `${p.category}.jpg`)).toString("base64")}` };
-  const input = { productId: p.id, productName: p.name, category: p.category, priceCents: p.priceCents, rating: p.ratingStar, ratingCount: p.ratingCount, sales30d: s30, sales7d: s7, salesSeries: series, photo };
+  const input = { productId: p.id, productName: p.name, category: p.category, priceCents: p.priceCents, rating: p.ratingStar, ratingCount: p.ratingCount, sales30d: s30, sales7d: s7, photo };
   console.log(id, p.name, { s30, s7 }, claimsFor({ rating: p.ratingStar, ratingCount: p.ratingCount, sales30d: s30, sales7d: s7 }));
   for (const style of STYLE_IDS) {
     const png = new Resvg(buildPinSvgByStyle(style, input), { font: { fontFiles: fonts, loadSystemFonts: false, defaultFontFamily: "Poppins" } }).render().asPng();
