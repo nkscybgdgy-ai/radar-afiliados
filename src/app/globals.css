@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #ee4d2d;
+  --color-brand-dark: #c93d20;
+  --color-ink: #1f2430;
+}
+
+body { @apply bg-stone-50 text-ink antialiased; }

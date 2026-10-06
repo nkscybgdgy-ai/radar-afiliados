@@ -1,6 +1,6 @@
 # Radar de Afiliados — CLAUDE.md
 
-> Status: **plano aprovado.** Camada de dados (mock) e score implementados e testados. Falta: app Next.js, banco, auth, cobrança. Itens marcados com (?) estão em aberto.
+> Status: **app completo rodando 100% local** (dados mock, banco PGlite, login simulado, Asaas simulado, job diário local). Nenhum serviço externo conectado. Faltam só as integrações reais: ver `LANCAMENTO.md`. Itens marcados com (?) estão em aberto.
 
 ## Projeto
 
@@ -32,61 +32,70 @@ MVP = só Shopee, só um nicho, funcionalidades 1, 2 e 3.
 5. **Modelo de negócio:** plano grátis limitado + assinatura mensal.
    - Grátis: Top 10 do radar, 5 fichas/dia, score visível, detalhamento do score bloqueado.
    - Pago: radar completo, filtros, detalhamento do score, exportação.
-   - Limites do plano grátis: (?) a definir.
+   - Limites do plano grátis (configuráveis): top 10 do radar (`FREE_RADAR_LIMIT`), 5 fichas/dia (`FREE_SHEETS_PER_DAY`). Revisar antes do lançamento.
    - **Cobrança: Asaas** (Pix, boleto e cartão). **Preço inicial R$ 39/mês**, configurável por `PLAN_PRICE_CENTS` (centavos; padrão 3900). Nunca fixar o preço no código.
 6. **UI e conteúdo em pt-BR.** Moeda BRL.
 7. **Sem dados pessoais de terceiros.** Só dados de produto/loja públicos via API oficial.
 
-## Stack proposta
+## REGRA: nenhum serviço que possa gerar custo até o lançamento
 
-- **Next.js (App Router) + TypeScript** — um único app, sem monorepo.
-- **Tailwind CSS** para UI.
-- **PostgreSQL** (Supabase ou Neon) + **Drizzle ORM** — produtos, snapshots diários, usuários, assinaturas.
-- **Auth:** Supabase Auth (ou Auth.js se for Neon).
-- **Pagamento:** Asaas (assinatura recorrente com Pix, boleto e cartão; webhooks em `src/app/api`).
-- **Job diário** de snapshot: Vercel Cron / GitHub Actions chamando uma rota protegida.
-- **Testes:** Vitest (domínio e adapters) + Playwright (fluxo principal).
-- **Lint/format:** ESLint + Prettier. Deploy: Vercel.
-- Zod nas fronteiras (resposta de adapter, inputs de rota).
+**Não conectar** Supabase, Neon, Vercel, Asaas, Stripe nem qualquer serviço pago/com risco de cobrança antes do lançamento. Tudo roda local e de graça. (GitHub é gratuito e pode ser usado.)
 
-## Estrutura de pastas proposta
+- Todo serviço externo fica atrás de uma **interface**, com troca mock/real por variável de ambiente, igual ao `DATA_SOURCE`:
+
+  | Interface | Local (padrão) | Real | Variável |
+  |---|---|---|---|
+  | `ProductSource` | mock | Shopee | `DATA_SOURCE` |
+  | `Db` (Drizzle) | PGlite (`.data/pglite`) | PostgreSQL | `DB_DRIVER` |
+  | `AuthProvider` | login simulado só com e-mail | Supabase Auth | `AUTH_PROVIDER` |
+  | `BillingProvider` | Asaas simulado (checkout local) | Asaas | `BILLING_PROVIDER` |
+  | Job diário | `npm run job:daily` | cron chama `/api/cron/snapshot` | `CRON_SECRET` |
+
+- **Trava no código:** `loadEnv` (`src/lib/env.ts`) recusa subir com auth/cobrança/banco reais se `ALLOW_PAID_SERVICES` não for `true`. Não contornar; não commitar `ALLOW_PAID_SERVICES=true`.
+- Código novo que dependa de serviço externo **precisa** de interface + implementação local + teste sem rede. Nunca importar SDK/cliente de serviço fora do seu adapter.
+- O que conectar, em que ordem e como testar: **`LANCAMENTO.md`**. Ao criar integração nova, atualizar esse arquivo no mesmo commit.
+- Adapters reais escritos antes do acesso (Asaas) foram testados só com `fetch` falso e estão marcados como não validados no `LANCAMENTO.md`.
+
+## Stack
+
+- **Next.js 16 (App Router) + TypeScript estrito**, um único app, sem monorepo. **Tailwind CSS v4**.
+- **Drizzle ORM** com schema Postgres (`src/db/schema.ts`). Local: **PGlite** (Postgres em WASM, sem servidor); migrações em `drizzle/` (geradas com `npm run db:generate`, aplicadas sozinhas no PGlite).
+- **Auth:** interface `AuthProvider`; local = `DevAuthProvider` (cookie httpOnly assinado com HMAC); real planejado = Supabase Auth.
+- **Cobrança:** interface `BillingProvider`; local = mock com `/checkout/simulado/[id]`, que dispara webhooks no formato do Asaas pelo **mesmo caminho** do real (`BillingService.handleWebhook`, idempotente por id de evento). Real = `AsaasBillingProvider`.
+- **Job diário:** `SnapshotJob` grava 1 snapshot/produto/dia (idempotente). Local: `npm run job:daily [-- --watch]`. Produção: `/api/cron/snapshot` com `Authorization: Bearer $CRON_SECRET`.
+- **Testes:** Vitest (domínio, dados, billing, limites, job; PGlite em memória) e Playwright (`npm run test:e2e`, precisa de `npm run build` antes).
+- Zod nas fronteiras (adapters, env, webhooks).
+
+## Estrutura de pastas
 
 ```
-radar-afiliados/
-├── CLAUDE.md
-├── docs/
-│   └── score.md                 # fórmula do score, com exemplos
-├── src/
-│   ├── app/                     # rotas Next.js
-│   │   ├── (marketing)/         # landing, preços
-│   │   ├── (app)/radar/         # funcionalidade 1
-│   │   ├── (app)/produto/[id]/  # funcionalidade 2
-│   │   ├── (app)/conta/         # plano, cobrança
-│   │   └── api/                 # cron de snapshot, webhooks de pagamento
-│   ├── domain/                  # puro, sem I/O
-│   │   ├── types.ts             # Product, Shop, Snapshot, ScoreBreakdown
-│   │   └── scoring/             # score.ts, config.ts, score.test.ts
-│   ├── data/                    # ÚNICA camada que fala com fonte externa
-│   │   ├── source.ts            # interface ProductSource
-│   │   ├── index.ts             # escolhe adapter por DATA_SOURCE
-│   │   ├── mock/                # fixtures determinísticas (seed fixa)
-│   │   └── shopee/              # adapter real (stub até haver acesso)
-│   ├── services/                # radar, ficha, planos/limites (orquestra data + domain)
-│   ├── db/                      # schema Drizzle, migrations, repositórios
-│   ├── billing/                 # Asaas, entitlements por plano
-│   ├── components/
-│   └── lib/                     # env, utils
-└── tests/e2e/
+├── CLAUDE.md · LANCAMENTO.md · docs/score.md · .env.example
+├── drizzle/                     # migrações SQL
+├── scripts/job-daily.ts         # job diário local
+├── tests/e2e/                   # Playwright
+└── src/
+    ├── app/                     # rotas Next (/, /precos, /login, /radar, /produto/[id], /conta,
+    │                            #   /checkout/simulado/[id], /api/webhooks/asaas, /api/cron/snapshot)
+    ├── domain/                  # puro, sem I/O: tipos e scoring/
+    ├── data/                    # ProductSource: mock/ e shopee/ (stub)
+    ├── db/                      # schema Drizzle e createDb (PGlite | postgres)
+    ├── auth/                    # AuthProvider: dev-auth, supabase-auth (stub)
+    ├── billing/                 # BillingProvider: mock-billing, asaas-billing; BillingService
+    ├── entitlements/            # limites do plano grátis x pro
+    ├── jobs/                    # SnapshotJob, dailySalesFromSnapshots
+    ├── services/                # RadarService (radar e ficha)
+    ├── components/ · lib/       # UI; env, container (monta tudo), session, format
 ```
 
-Regra de dependência: `app → services → (data, domain, db)`. `domain` não importa de ninguém.
+Regra de dependência: `app → services/billing/entitlements/jobs → (data, domain, db)`. `domain` não importa de ninguém. `lib/container.ts` é o único lugar que escolhe mock/real.
 
 ## Estado da implementação
 
-- `src/domain`: tipos (dinheiro em centavos, Zod) e `scoring/` (puro). Detalhes em `docs/score.md`.
-- `src/data`: `ProductSource` + adapter `mock/` (60 produtos, 5 categorias, determinístico) + stub `shopee/` (lança erro até haver acesso).
-- `src/services/radar.service.ts`: radar e ficha. O score é **sempre calculado contra o nicho inteiro** e só depois filtrado por categoria, para o mesmo produto ter o mesmo score em qualquer tela.
-- Comandos: `npm test`, `npm run typecheck`.
+Pronto e testado (`npm test`: 57 testes; `npm run test:e2e`: 3 fluxos): radar com filtro por categoria e ordenação (score / mais vendidos / em alta), ficha do produto com score e detalhamento, plano grátis (top 10, 5 fichas/dia, detalhamento bloqueado) x Pro (tudo liberado), login simulado, assinatura simulada (Pix/boleto/cartão), webhooks idempotentes, job diário.
+Não feito: alertas, gerador de link/legenda/Pinterest, integrações reais, coleta de CPF/CNPJ para o Asaas, páginas legais.
+
+Comandos: `npm run dev` · `npm run build && npm start` · `npm test` · `npm run typecheck` · `npm run test:e2e` · `npm run job:daily` · `npm run db:generate`.
+Detalhes da camada de dados e do score continuam nas seções abaixo e em `docs/score.md`. O score é **sempre calculado contra o nicho inteiro** e só depois filtrado por categoria.
 
 ## Interface da camada de dados (contrato)
 
@@ -140,5 +149,5 @@ organização, cozinha, limpeza, banheiro, decoração (`HOME_CATEGORIES` em `sr
 ## Perguntas em aberto
 
 1. Nome do produto e do domínio (placeholder: `radar-afiliados`).
-2. Limites exatos do plano grátis.
+2. Limites finais do plano grátis (hoje 10 / 5 por dia, configuráveis).
 3. Calibração dos pesos do score com dados reais. No mock (60 produtos) a distribuição é Boa 20 · Mediana 32 · Evitar 8, máximo 78: nenhum "Excelente" ainda, porque o score usa percentis do nicho e exige topo em quase tudo ao mesmo tempo.
