@@ -29,10 +29,24 @@ export const LIMITS = { title: 100, description: 500, maxHashtags: 6 } as const;
 /** Aviso obrigatório em toda legenda. */
 export const DISCLOSURE = "Link de afiliado: posso receber comissão se você comprar, sem custo extra para você. #publi";
 
-/** Limiares para só afirmar o que os dados sustentam. */
+/** Limiares para só afirmar o que os dados sustentam. Valem para a legenda E para a imagem. */
 const MIN_RATING_COUNT_TO_CLAIM = 10;
 const MIN_RATING_TO_CLAIM = 4.5;
 const MIN_SALES_TO_CLAIM = 50;
+
+export interface Claims {
+  /** Nota e nº de avaliações, só se ≥ 4,5 com ≥ 10 avaliações. */
+  rating?: { value: number; count: number };
+  /** Vendas em 30 dias arredondadas PARA BAIXO, só se ≥ 50. */
+  sales30d?: number;
+}
+
+export function claimsFor(d: { rating: number; ratingCount: number; sales30d: number }): Claims {
+  const out: Claims = {};
+  if (d.ratingCount >= MIN_RATING_COUNT_TO_CLAIM && d.rating >= MIN_RATING_TO_CLAIM) out.rating = { value: d.rating, count: d.ratingCount };
+  if (d.sales30d >= MIN_SALES_TO_CLAIM) out.sales30d = floorSales(d.sales30d);
+  return out;
+}
 
 const CATEGORY_COPY: Record<HomeCategory, { uso: string; beneficio: string; tags: string[] }> = {
   organizacao: { uso: "deixar a casa em ordem", beneficio: "mais espaço e menos bagunça", tags: ["organizacao", "casaorganizada", "organizacaodacasa", "dicasdeorganizacao"] },
@@ -46,11 +60,12 @@ const COMMON_TAGS = ["achadinhosshopee", "shopee"];
 const brl = (cents: number) =>
   `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
 
-/** "mais de 1.400": arredonda para baixo, então a frase é sempre verdadeira. */
-function salesFloor(n: number): string {
+/** Arredonda para baixo, então "mais de N" é sempre verdadeiro. */
+export function floorSales(n: number): number {
   const step = n >= 1000 ? 100 : 10;
-  return new Intl.NumberFormat("pt-BR").format(Math.floor(n / step) * step);
+  return Math.floor(n / step) * step;
 }
+const salesFloor = (n: number) => new Intl.NumberFormat("pt-BR").format(floorSales(n));
 
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
@@ -66,12 +81,13 @@ export function generateCaption(input: CaptionInput): Caption {
   const copy = CATEGORY_COPY[input.category];
   const price = brl(input.priceCents);
 
+  const claims = claimsFor(input);
   const facts: string[] = [];
-  if (input.ratingCount >= MIN_RATING_COUNT_TO_CLAIM && input.rating >= MIN_RATING_TO_CLAIM) {
-    facts.push(`Nota ${input.rating.toFixed(1).replace(".", ",")} de ${new Intl.NumberFormat("pt-BR").format(input.ratingCount)} avaliações`);
+  if (claims.rating) {
+    facts.push(`Nota ${claims.rating.value.toFixed(1).replace(".", ",")} de ${new Intl.NumberFormat("pt-BR").format(claims.rating.count)} avaliações`);
   }
-  if (input.sales30d >= MIN_SALES_TO_CLAIM) {
-    facts.push(`mais de ${salesFloor(input.sales30d)} vendidos nos últimos 30 dias`);
+  if (claims.sales30d) {
+    facts.push(`mais de ${salesFloor(claims.sales30d)} vendidos nos últimos 30 dias`);
   }
   const factLine = facts.length ? `${facts.join(" e ")}.` : "";
 
