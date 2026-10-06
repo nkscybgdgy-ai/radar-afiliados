@@ -1,0 +1,54 @@
+name: CI
+
+# Barato de propósito (repositório privado = cota gratuita de minutos):
+# só typecheck + testes + build, com cache do npm. O E2E (Playwright) fica manual.
+on:
+  push:
+    paths-ignore: ["**/*.md", "docs/**"]
+  pull_request:
+    paths-ignore: ["**/*.md", "docs/**"]
+  workflow_dispatch:
+    inputs:
+      e2e:
+        description: "Rodar também o E2E (Playwright, mais lento)"
+        type: boolean
+        default: false
+
+# Um push novo cancela a execução anterior da mesma branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:e2e
