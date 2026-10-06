@@ -10,6 +10,7 @@ export const SCORE_CONFIG = {
   trend: {
     /** Suavizador (vendas/dia) para produtos de baixo volume não "dispararem". */
     k: 0.5,
+    /** g ≤ gMin → 0 ; g = 1 (estável) → 50 ; g ≥ gMax → 100. Linear em cada lado. */
     gMin: 0.5,
     gMax: 3.0,
   },

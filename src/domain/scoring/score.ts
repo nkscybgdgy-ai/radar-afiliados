@@ -88,6 +88,14 @@ export function growthRatio(
   return clamp(g, cfg.gMin, cfg.gMax);
 }
 
+/** Estável (g=1) → 50; queda desce até 0 em gMin; crescimento sobe até 100 em gMax. */
+export function trendScore(g: number, cfg: ScoreConfig["trend"] = SCORE_CONFIG.trend): number {
+  const x = clamp(g, cfg.gMin, cfg.gMax);
+  return x <= 1
+    ? ((x - cfg.gMin) / (1 - cfg.gMin)) * 50
+    : 50 + ((x - 1) / (cfg.gMax - 1)) * 50;
+}
+
 export function bandFor(score: number, cfg: ScoreConfig = SCORE_CONFIG): string {
   return (cfg.bands.find((b) => score >= b.min) ?? cfg.bands[cfg.bands.length - 1]!).label;
 }
@@ -104,7 +112,7 @@ export function scoreProduct(
     cfg.commission.rateShare * percentileRank(cohort.commissionRate, input.commissionRate);
 
   const g = growthRatio(input.sales7d, input.sales30d, cfg.trend);
-  const trend = ((g - cfg.trend.gMin) / (cfg.trend.gMax - cfg.trend.gMin)) * 100;
+  const trend = trendScore(g, cfg.trend);
 
   const r = cfg.reliability;
   const adjRating = adjustedRating(input.rating, input.ratingCount, r);

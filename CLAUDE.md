@@ -113,7 +113,7 @@ score = 0.30·Demanda + 0.25·Comissão + 0.25·Tendência + 0.20·Confiabilidad
 |---|---|---|
 | **Demanda** | 30% | Percentil de `vendas_30d` dentro do nicho (percentil evita limites arbitrários e é robusto a outliers). |
 | **Comissão** | 25% | `0,6·percentil(comissão_R$) + 0,4·percentil(comissão_%)`. Comissão em R$ = preço × %; ela pesa mais porque é o que entra no bolso. |
-| **Tendência** | 25% | `g = (vendas_7d/7 + k) / (vendas_30d/30 + k)`, com `k` suavizador para produtos de baixo volume não "dispararem" por 2 vendas. `g` limitado a [0,5 ; 3,0] e mapeado linearmente para 0–100 (g=1 → ~20; g≥3 → 100). |
+| **Tendência** | 25% | `g = (vendas_7d/7 + k) / (vendas_30d/30 + k)`, com `k` suavizador para produtos de baixo volume não "dispararem" por 2 vendas. `g` limitado a [0,5 ; 3,0]. Estável (g=1) → **50 (neutro)**; queda desce linear até 0 (g=0,5); crescimento sobe linear até 100 (g=3,0). |
 | **Confiabilidade** | 20% | `0,5·nota_ajustada + 0,3·confiança_avaliações + 0,2·selo_loja`. `nota_ajustada` é Bayesiana (`(v·R + m·C)/(v+m)`, m=20, C=4,5) mapeada de 3,5→0 a 5,0→100. `confiança_avaliações` = `min(1, log10(avaliações)/log10(500))`. `selo_loja`: oficial 100, preferida 70, regular 0. |
 
 **Travas (gates)**, aplicadas depois da soma:
@@ -141,4 +141,4 @@ organização, cozinha, limpeza, banheiro, decoração (`HOME_CATEGORIES` em `sr
 
 1. Nome do produto e do domínio (placeholder: `radar-afiliados`).
 2. Limites exatos do plano grátis.
-3. Calibração dos pesos do score com dados reais. Hoje a faixa "Excelente" (80+) é difícil de atingir por construção: tendência estável (g=1) vale ~20, então só produto estável *e* top em demanda, comissão e confiabilidade chega lá.
+3. Calibração dos pesos do score com dados reais. No mock (60 produtos) a distribuição é Boa 20 · Mediana 32 · Evitar 8, máximo 78: nenhum "Excelente" ainda, porque o score usa percentis do nicho e exige topo em quase tudo ao mesmo tempo.

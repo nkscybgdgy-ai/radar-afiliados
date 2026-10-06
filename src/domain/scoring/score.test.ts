@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SCORE_CONFIG } from "./config";
-import { adjustedRating, buildCohort, growthRatio, percentileRank, scoreAll, scoreProduct, type ScoreInput } from "./score";
+import { adjustedRating, buildCohort, growthRatio, percentileRank, scoreAll, scoreProduct, trendScore, type ScoreInput } from "./score";
 
 const base: ScoreInput = {
   id: "x", commissionCents: 1000, commissionRate: 0.1, sales30d: 300, sales7d: 70,
@@ -37,6 +37,31 @@ describe("growthRatio", () => {
   });
   it("suavização: 2 vendas num produto minúsculo não dispara", () => {
     expect(growthRatio(2, 2)).toBeLessThan(1.5);
+  });
+});
+
+describe("trendScore", () => {
+  it("estável = 50 (neutro)", () => expect(trendScore(1)).toBe(50));
+  it("extremos: gMin → 0, gMax → 100", () => {
+    expect(trendScore(SCORE_CONFIG.trend.gMin)).toBe(0);
+    expect(trendScore(SCORE_CONFIG.trend.gMax)).toBe(100);
+  });
+  it("crescimento > 50, queda < 50, monotônico", () => {
+    expect(trendScore(1.5)).toBeGreaterThan(50);
+    expect(trendScore(0.75)).toBeLessThan(50);
+    expect(trendScore(0.75)).toBeGreaterThan(0);
+    expect(trendScore(2)).toBeGreaterThan(trendScore(1.5));
+    expect(trendScore(0.6)).toBeLessThan(trendScore(0.9));
+  });
+  it("fora do intervalo é limitado", () => {
+    expect(trendScore(10)).toBe(100);
+    expect(trendScore(0)).toBe(0);
+  });
+  it("produto estável tem breakdown.trend = 50", () => {
+    const c = buildCohort([base]);
+    // 70 vendas em 7d e 300 em 30d ≈ g 1,0
+    const r = scoreProduct(mk({ sales7d: 70, sales30d: 300 }), c);
+    expect(r.breakdown.trend).toBe(50);
   });
 });
 
