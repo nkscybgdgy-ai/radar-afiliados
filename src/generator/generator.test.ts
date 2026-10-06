@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { generateCaption, LIMITS, DISCLOSURE, TONES, type CaptionInput } from "@/domain/generator/caption";
+import { claimsFor, generateCaption, LIMITS, DISCLOSURE, TONES, type CaptionInput } from "@/domain/generator/caption";
 import { buildPinSvg, renderPinPng, wrapText, PIN_HEIGHT, PIN_WIDTH } from "./pin-image";
 import { MockAffiliateLinkProvider, ShopeeAffiliateLinkProvider } from "./links";
 import { buildContainer, type Container } from "@/lib/container";
@@ -140,5 +140,22 @@ describe("GeneratorService", () => {
     if (r.status !== "ok") throw new Error("esperava ok");
     expect(await c.generator.getOwnedPin(a.id, r.pin.id)).not.toBeNull();
     expect(await c.generator.getOwnedPin(b.id, r.pin.id)).toBeNull();
+  });
+});
+
+describe("regra de 'em alta' (claimsFor)", () => {
+  const base = { rating: 4.8, ratingCount: 500 };
+  it("só afirma com volume e ritmo suficientes, arredondando PARA BAIXO", () => {
+    // 504 em 7d (72/dia) vs 1505 em 30d (50,2/dia): +43,5% → 40
+    expect(claimsFor({ ...base, sales30d: 1505, sales7d: 504 }).trendPct).toBe(40);
+    // ritmo igual ao da média: sem destaque
+    expect(claimsFor({ ...base, sales30d: 1500, sales7d: 350 }).trendPct).toBeUndefined();
+    // +25% (abaixo do mínimo de 30%): sem destaque
+    expect(claimsFor({ ...base, sales30d: 1500, sales7d: 437 }).trendPct).toBeUndefined();
+  });
+  it("volume baixo nunca vira 'em alta'", () => {
+    expect(claimsFor({ ...base, sales30d: 40, sales7d: 30 }).trendPct).toBeUndefined(); // < 50 em 30d
+    expect(claimsFor({ ...base, sales30d: 300, sales7d: 15 }).trendPct).toBeUndefined(); // < 20 em 7d
+    expect(claimsFor({ ...base, sales30d: 1500 }).trendPct).toBeUndefined(); // sem dado de 7d
   });
 });

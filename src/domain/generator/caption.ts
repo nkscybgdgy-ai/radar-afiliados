@@ -34,15 +34,25 @@ const MIN_RATING_COUNT_TO_CLAIM = 10;
 const MIN_RATING_TO_CLAIM = 4.5;
 const MIN_SALES_TO_CLAIM = 50;
 
+/** "Em alta": só com volume mínimo e ritmo da última semana ≥ 30% acima da média de 30 dias. */
+const MIN_SALES_7D_FOR_TREND = 20;
+const MIN_TREND_RATIO = 1.3;
+
 export interface Claims {
   /** Nota e nº de avaliações, só se ≥ 4,5 com ≥ 10 avaliações. */
   rating?: { value: number; count: number };
   /** Vendas em 30 dias arredondadas PARA BAIXO, só se ≥ 50. */
   sales30d?: number;
+  /** Ritmo diário dos últimos 7 dias vs média diária de 30 dias, em %, arredondado PARA BAIXO de 10 em 10. */
+  trendPct?: number;
 }
 
-export function claimsFor(d: { rating: number; ratingCount: number; sales30d: number }): Claims {
+export function claimsFor(d: { rating: number; ratingCount: number; sales30d: number; sales7d?: number }): Claims {
   const out: Claims = {};
+  if (d.sales7d !== undefined && d.sales30d >= MIN_SALES_TO_CLAIM && d.sales7d >= MIN_SALES_7D_FOR_TREND) {
+    const ratio = d.sales7d / 7 / (d.sales30d / 30);
+    if (ratio >= MIN_TREND_RATIO) out.trendPct = Math.floor(((ratio - 1) * 100) / 10) * 10;
+  }
   if (d.ratingCount >= MIN_RATING_COUNT_TO_CLAIM && d.rating >= MIN_RATING_TO_CLAIM) out.rating = { value: d.rating, count: d.ratingCount };
   if (d.sales30d >= MIN_SALES_TO_CLAIM) out.sales30d = floorSales(d.sales30d);
   return out;

@@ -1,17 +1,17 @@
 import { claimsFor, type Claims } from "@/domain/generator/caption";
 import { hashString } from "@/lib/hash";
-import type { HomeCategory } from "@/domain/types";
+import { CATEGORY_LABELS, type HomeCategory } from "@/domain/types";
 
 export const W = 1000;
 export const H = 1500; // 2:3, proporção recomendada do Pinterest
 
-export const STYLE_IDS = ["minimalista", "vibrante", "achadinho", "antesdepois"] as const;
+export const STYLE_IDS = ["minimalista", "vibrante", "achadinho", "emalta"] as const;
 export type PinStyle = (typeof STYLE_IDS)[number];
 export const STYLE_LABELS: Record<PinStyle, string> = {
   minimalista: "Minimalista claro",
   vibrante: "Colorido vibrante",
   achadinho: "Achadinho",
-  antesdepois: "Antes e depois",
+  emalta: "Em alta",
 };
 
 /** Foto embutida (data URI). `null` = foto provisória desenhada (só em demonstração). */
@@ -27,9 +27,11 @@ export interface PinDesignInput {
   rating: number;
   ratingCount: number;
   sales30d: number;
+  /** Vendas dos últimos 7 dias (habilita a regra de "em alta"). */
+  sales7d?: number;
+  /** Vendas por dia, mais antigo primeiro (gráfico do estilo "em alta"). */
+  salesSeries?: number[];
   photo: Photo | null;
-  /** Foto "antes" (só o estilo antes/depois). */
-  beforePhoto?: Photo | null;
 }
 
 export const esc = (s: string) =>
@@ -89,7 +91,7 @@ export function priceParts(cents: number): { int: string; dec: string } {
   return { int, dec: String(cents % 100).padStart(2, "0") };
 }
 
-export const claims = (i: PinDesignInput): Claims => claimsFor({ rating: i.rating, ratingCount: i.ratingCount, sales30d: i.sales30d });
+export const claims = (i: PinDesignInput): Claims => claimsFor({ rating: i.rating, ratingCount: i.ratingCount, sales30d: i.sales30d, sales7d: i.sales7d });
 
 export interface ClaimLine {
   kind: "rating" | "sales";
@@ -119,9 +121,6 @@ export const starIcon = (cx: number, cy: number, r: number, fill: string) => {
 /** Seta desenhada (a fonte não tem "→"). */
 export const arrowRight = (x: number, y: number, len: number, color: string, w = 5) =>
   `<path d="M${x} ${y} H${x + len} M${x + len - len * 0.38} ${y - len * 0.38} L${x + len} ${y} L${x + len - len * 0.38} ${y + len * 0.38}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-export const arrowDown = (x: number, y: number, len: number, color: string, w = 6) =>
-  `<path d="M${x} ${y} V${y + len} M${x - len * 0.38} ${y + len - len * 0.38} L${x} ${y + len} L${x + len * 0.38} ${y + len - len * 0.38}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-
 /** Linha de destaque: estrela desenhada (nota) ou só texto (vendas). Devolve o SVG e a largura. */
 export function claimInline(c: ClaimLine, x: number, y: number, size: number, color: string, star: string) {
   const icon = c.kind === "rating";
@@ -152,7 +151,7 @@ export const SHADOW_FILTER = (id: string, dy = 14, blur = 16, opacity = 0.28) =>
  * Camada da foto: recorta com cantos arredondados e preenche (slice) a área.
  * Sem foto, desenha uma foto PROVISÓRIA (frasco), claramente identificada.
  */
-export function photoLayer(photo: Photo | null, id: string, x: number, y: number, w: number, h: number, rx: number, variant: "depois" | "antes" = "depois", label: "bl" | "tl" = "bl"): string {
+export function photoLayer(photo: Photo | null, id: string, x: number, y: number, w: number, h: number, rx: number, label: "bl" | "tl" = "bl"): string {
   const clip = `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/></clipPath>`;
   if (photo) {
     return `${clip}<image xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="${photo.dataUri}" href="${photo.dataUri}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>`;
@@ -160,20 +159,17 @@ export function photoLayer(photo: Photo | null, id: string, x: number, y: number
   const cx = x + w / 2;
   const cy = y + h / 2;
   const s = Math.min(w, h);
-  const jar = (jx: number, jy: number, k: number, tilt = 0) => `<g transform="rotate(${tilt} ${jx} ${jy})">
-  <rect x="${jx - 0.17 * s * k}" y="${jy - 0.22 * s * k}" width="${0.34 * s * k}" height="${0.44 * s * k}" rx="${0.04 * s * k}" fill="#ffffff" fill-opacity="0.92"/>
-  <rect x="${jx - 0.19 * s * k}" y="${jy - 0.29 * s * k}" width="${0.38 * s * k}" height="${0.08 * s * k}" rx="${0.02 * s * k}" fill="#8A94A6"/>
-  <rect x="${jx - 0.1 * s * k}" y="${jy - 0.08 * s * k}" width="${0.2 * s * k}" height="${0.14 * s * k}" rx="${0.02 * s * k}" fill="#CBD2DE"/></g>`;
-  const content =
-    variant === "antes"
-      ? jar(cx - 0.24 * s, cy + 0.05 * s, 0.75, -18) + jar(cx + 0.2 * s, cy - 0.02 * s, 0.65, 24) + jar(cx - 0.02 * s, cy + 0.14 * s, 0.55, 71)
-      : jar(cx, cy - 0.02 * s, 1.1);
-  const [c1, c2] = variant === "antes" ? ["#B9B4AC", "#8E8A83"] : ["#F4EFE8", "#DCD5CA"];
+  const k = 1.1;
   return `${clip}<g clip-path="url(#${id})">
-  <defs><linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
-  <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${id}g)"/>${content}
+  <defs><linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F4EFE8"/><stop offset="1" stop-color="#DCD5CA"/></linearGradient></defs>
+  <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${id}g)"/>
+  <rect x="${cx - 0.17 * s * k}" y="${cy - 0.02 * s - 0.22 * s * k}" width="${0.34 * s * k}" height="${0.44 * s * k}" rx="${0.04 * s * k}" fill="#ffffff" fill-opacity="0.92"/>
+  <rect x="${cx - 0.19 * s * k}" y="${cy - 0.02 * s - 0.29 * s * k}" width="${0.38 * s * k}" height="${0.08 * s * k}" rx="${0.02 * s * k}" fill="#8A94A6"/>
+  <rect x="${cx - 0.1 * s * k}" y="${cy - 0.02 * s - 0.08 * s * k}" width="${0.2 * s * k}" height="${0.14 * s * k}" rx="${0.02 * s * k}" fill="#CBD2DE"/>
   <text x="${x + 28}" y="${label === "tl" ? y + 44 : y + h - 24}" font-family="Poppins" font-weight="600" font-size="20" letter-spacing="1" fill="#4B5563" fill-opacity="0.8">FOTO PROVISÓRIA</text></g>`;
 }
+
+export const CATEGORY_LABELS_UP: Record<HomeCategory, string> = Object.fromEntries(Object.entries(CATEGORY_LABELS).map(([k, v]) => [k, v.toUpperCase()])) as Record<HomeCategory, string>;
 
 export const FOOTER = "Link de afiliado · preço pode variar na loja";
 

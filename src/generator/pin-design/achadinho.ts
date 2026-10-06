@@ -23,7 +23,7 @@ export function achadinho(i: PinDesignInput): string {
 <g transform="rotate(-4 500 130)" filter="url(#sh)"><rect x="-20" y="70" width="1040" height="130" fill="#E63946"/></g>
 <g transform="rotate(-4 500 130)"><text x="500" y="162" font-family="Pacifico" font-size="84" text-anchor="middle" fill="#ffffff">Achadinho da casa</text></g>
 <g transform="rotate(-2.5 500 600)" filter="url(#sh)"><rect x="90" y="270" width="820" height="720" rx="40" fill="#ffffff"/></g>
-<g transform="rotate(-2.5 500 600)">${photoLayer(i.photo, "ph", 118, 298, 764, 664, 24, "depois", "bl")}</g>
+<g transform="rotate(-2.5 500 600)">${photoLayer(i.photo, "ph", 118, 298, 764, 664, 24, "bl")}</g>
 <g filter="url(#sh)"><polygon points="${starPts}" fill="#E63946"/></g>
 <text x="812" y="368" font-size="30" font-weight="800" text-anchor="middle" fill="#FFD60A" letter-spacing="1">POR SÓ</text>
 <text x="812" y="462" text-anchor="middle" fill="#ffffff" font-weight="800"><tspan font-size="30" font-weight="700">R$ </tspan><tspan font-size="${big}">${esc(price.int)}</tspan><tspan font-size="38" font-weight="700" dy="-32">,${price.dec}</tspan></text>

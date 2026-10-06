@@ -12,7 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "job:daily": "tsx scripts/job-daily.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "photos:fetch": "tsx scripts/fetch-photos.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",

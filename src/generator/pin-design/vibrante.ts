@@ -12,7 +12,7 @@ export function vibrante(i: PinDesignInput): string {
   const defs = `${SHADOW_FILTER("sh", 16, 18, 0.35)}<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p.grad[0]}"/><stop offset="1" stop-color="${p.grad[1]}"/></linearGradient>`;
   const body = `
 <rect width="1000" height="1500" fill="url(#bg)"/>
-${photoLayer(i.photo, "ph", 0, 0, 1000, 1000, 0, "depois", "tl")}
+${photoLayer(i.photo, "ph", 0, 0, 1000, 1000, 0, "tl")}
 <polygon points="0,880 1000,780 1000,1500 0,1500" fill="url(#bg)"/>
 <polygon points="0,880 1000,780 1000,798 0,898" fill="#ffffff" fill-opacity="0.28"/>
 <g filter="url(#sh)"><circle cx="790" cy="790" r="172" fill="#FFD60A"/></g>
