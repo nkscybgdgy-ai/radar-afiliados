@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { claimsFor, generateCaption, LIMITS, DISCLOSURE, TONES, type CaptionInput } from "@/domain/generator/caption";
-import { buildPinSvg, renderPinPng, wrapText, PIN_HEIGHT, PIN_WIDTH } from "./pin-image";
+import { renderPinPng, PIN_HEIGHT, PIN_WIDTH } from "./pin-image";
+import { TestPhotoProvider, ShopeePhotoProvider, createPhotoProvider } from "./photos";
+import { availableStyles, styleAvailable } from "./pin-design";
 import { MockAffiliateLinkProvider, ShopeeAffiliateLinkProvider } from "./links";
 import { buildContainer, type Container } from "@/lib/container";
 import { Resvg } from "@resvg/resvg-js";
@@ -72,31 +74,65 @@ describe("links", () => {
   });
 });
 
-describe("imagem do pin", () => {
-  const input = { name: "Kit Potes Herméticos & <b>Vidro</b>", category: "cozinha" as const, priceCents: 8990, rating: 4.8, ratingCount: 1200 };
+describe("imagem do pin (PNG)", () => {
+  const input = { productId: "coz-001", productName: "Kit Potes Herméticos & <b>Vidro</b>", category: "cozinha" as const, priceCents: 8990, rating: 4.8, ratingCount: 1200, sales30d: 1432, sales7d: 600, photo: null };
 
-  it("escapa XML e nunca mostra comissão", () => {
-    const svg = buildPinSvg(input);
-    expect(svg).toContain("&amp;");
-    expect(svg).not.toContain("<b>");
-    expect(svg.toLowerCase()).not.toContain("comiss");
-    expect(svg).toContain("Link de afiliado");
-  });
-  it("sem avaliações suficientes não mostra nota", () => {
-    expect(buildPinSvg({ ...input, ratingCount: 2 })).not.toContain("avaliações");
-  });
-  it("wrapText limita linhas", () => {
-    const lines = wrapText("palavra ".repeat(100), 64, 840, 3);
-    expect(lines).toHaveLength(3);
-    expect(lines[2]!.endsWith("…")).toBe(true);
-  });
-  it("PNG válido 1000×1500 e determinístico", () => {
-    const a = renderPinPng(input);
+  it.each(STYLE_IDS)("estilo %s: PNG válido 1000×1500, determinístico, com texto desenhado", (style) => {
+    const a = renderPinPng(style, input);
     expect(a.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
     expect(a.readUInt32BE(16)).toBe(PIN_WIDTH);
     expect(a.readUInt32BE(20)).toBe(PIN_HEIGHT);
-    expect(a.equals(renderPinPng(input))).toBe(true);
-    expect(a.length).toBeGreaterThan(10_000); // texto renderizado, não imagem vazia
+    expect(a.equals(renderPinPng(style, input))).toBe(true);
+    expect(a.length).toBeGreaterThan(20_000);
+  });
+  it("escapa XML e nunca mostra comissão em nenhum estilo", () => {
+    for (const style of STYLE_IDS) {
+      const svg = buildPinSvgByStyle(style, input);
+      expect(svg).not.toContain("<b>");
+      expect(svg.toLowerCase()).not.toContain("comiss");
+      expect(svg).toContain("Link de afiliado");
+    }
+  });
+  it("sem avaliações suficientes não mostra nota", () => {
+    for (const style of STYLE_IDS) expect(buildPinSvgByStyle(style, { ...input, ratingCount: 2 })).not.toContain("avaliações");
+  });
+  it("com foto, embute a imagem e não escreve 'FOTO PROVISÓRIA'", () => {
+    const photo = { dataUri: "data:image/jpeg;base64,/9j/4AAQ" };
+    for (const style of STYLE_IDS) {
+      const svg = buildPinSvgByStyle(style, { ...input, photo });
+      expect(svg).toContain("data:image/jpeg;base64");
+      expect(svg).not.toContain("FOTO PROVIS");
+    }
+    expect(buildPinSvgByStyle("minimalista", input)).toContain("FOTO PROVIS");
+  });
+});
+
+describe("estilos disponíveis", () => {
+  it("'em alta' só com a regra de tendência cumprida", () => {
+    const trending = claimsFor({ rating: 4.8, ratingCount: 500, sales30d: 1505, sales7d: 504 });
+    const flat = claimsFor({ rating: 4.8, ratingCount: 500, sales30d: 1500, sales7d: 350 });
+    expect(availableStyles(trending)).toEqual(STYLE_IDS);
+    expect(availableStyles(flat)).toEqual(["minimalista", "vibrante", "achadinho"]);
+    expect(styleAvailable("emalta", flat)).toBe(false);
+    expect(styleAvailable("emaltaclaro", flat)).toBe(false);
+    expect(styleAvailable("achadinho", flat)).toBe(true);
+  });
+});
+
+describe("fotos: teste só para demonstração", () => {
+  it("fotos de teste só servem para produto de demonstração", async () => {
+    const p = new TestPhotoProvider();
+    const photo = await p.getPhoto({ productSource: "mock", imageUrl: "mock:coz-001", category: "cozinha" });
+    expect(photo?.dataUri.startsWith("data:image/jpeg;base64,")).toBe(true);
+    await expect(p.getPhoto({ productSource: "shopee", imageUrl: "https://exemplo/foto.jpg", category: "cozinha" })).rejects.toThrow(/demonstração/);
+  });
+  it("categoria sem arquivo → sem foto (desenho provisório)", async () => {
+    expect(await new TestPhotoProvider("/pasta/que/nao/existe").getPhoto({ productSource: "mock", imageUrl: "mock:x", category: "cozinha" })).toBeNull();
+  });
+  it("DATA_SOURCE decide o provedor; o da Shopee ainda não está conectado", () => {
+    expect(createPhotoProvider({ DATA_SOURCE: "mock" }).kind).toBe("test");
+    expect(createPhotoProvider({ DATA_SOURCE: "shopee" }).kind).toBe("shopee");
+    expect(() => new ShopeePhotoProvider().getPhoto()).toThrow(/aguardando acesso/);
   });
 });
 
@@ -136,6 +172,24 @@ describe("GeneratorService", () => {
     const f = await user("race@x.com");
     const r = await Promise.all(["coz-001", "coz-002", "coz-003", "lim-001"].map((id) => c.generator.generate(f.id, "free", id, "direto")));
     expect(r.filter((x) => x.status === "ok")).toHaveLength(1);
+  });
+  it("guarda o estilo; trocar de estilo no mesmo dia não gasta outro pin; sem tendência não libera 'em alta'", async () => {
+    const u = await user("estilo@x.com");
+    const r1 = await c.generator.generate(u.id, "free", "coz-001", "direto", "achadinho");
+    expect(r1.status === "ok" && r1.pin.style).toBe("achadinho");
+    const r2 = await c.generator.generate(u.id, "free", "coz-001", "direto", "emaltaclaro"); // coz-001 está em alta (+70%)
+    expect(r2.status).toBe("ok");
+    if (r1.status === "ok" && r2.status === "ok") {
+      expect(r2.pin.id).toBe(r1.pin.id);
+      expect(r2.pin.style).toBe("emaltaclaro");
+      expect(r2.pin.sales30d).toBeGreaterThan(50);
+      expect(r2.pin.productSource).toBe("mock");
+    }
+    expect((await c.generator.todayPin(u.id, "coz-001"))!.style).toBe("emaltaclaro");
+    const pro = await user("pro2@x.com");
+    expect(await c.generator.generate(pro.id, "pro", "org-006", "direto", "emalta")).toEqual({ status: "style_unavailable" }); // org-006 não está em alta
+    expect((await c.generator.generate(pro.id, "pro", "org-006", "direto", "vibrante")).status).toBe("ok");
+    expect(await c.generator.usedToday(pro.id)).toBe(1); // estilo indisponível não grava nada
   });
   it("só o dono acessa o pin", async () => {
     const a = await user("a@x.com");
@@ -218,5 +272,25 @@ describe("títulos nunca passam da borda (todos os produtos × todos os estilos)
       }
     }
     expect(bad).toEqual([]);
+  });
+});
+
+describe("fotos de teste não vazam", () => {
+  it("só photos.ts e os testes referenciam assets/photos; nada em public/", async () => {
+    const { readdirSync, readFileSync, existsSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const f of readdirSync(dir)) {
+        const full = join(dir, f);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (/\.(ts|tsx|css|html|json)$/.test(f) && /assets[/"', ]+\s*"?photos|assets\/photos/.test(readFileSync(full, "utf8"))) offenders.push(full.replace(process.cwd() + "/", ""));
+      }
+    };
+    walk(join(process.cwd(), "src"));
+    expect(offenders.filter((f) => f !== "src/generator/photos.ts" && !f.endsWith(".test.ts"))).toEqual([]);
+    const pub = join(process.cwd(), "public");
+    if (existsSync(pub)) expect(readdirSync(pub).join(" ")).not.toMatch(/cozinha|organizacao|limpeza|banheiro|decoracao|toalheiro/);
+    expect(readFileSync(join(process.cwd(), "next.config.ts"), "utf8")).not.toContain("assets/photos"); // fora do pacote de deploy
   });
 });

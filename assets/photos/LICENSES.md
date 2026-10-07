@@ -1,4 +1,15 @@
-# Fotos usadas nos pins: origem e licença
+# ⛔ USO INTERNO, SOMENTE PARA TESTE. NUNCA PUBLICAR.
+
+**Estas fotos servem apenas para testar o design dos pins em desenvolvimento.** Elas **nunca** podem aparecer em nada público: site, landing page, redes sociais, anúncios, materiais de divulgação ou qualquer pin postado de verdade.
+
+- **Em produção os pins usam a foto do produto vinda da Shopee** (`imageUrl` da API), nunca estas.
+- Proteções no código: `TestPhotoProvider` (`src/generator/photos.ts`) **recusa** qualquer produto que não seja de demonstração; `assets/` não é servido pelo Next (não está em `public/`) e não entra no pacote de deploy; a tela do gerador avisa "Foto de teste: uso interno, não publique" e um teste impede que o resto do código leia esta pasta.
+- Pins gerados com `DATA_SOURCE=mock` contêm estas fotos: **não os poste**.
+- Antes do lançamento: apagar esta pasta (ou confirmar que fica fora do build) e conferir que `DATA_SOURCE=shopee`.
+
+---
+
+## Origem e licença das fotos de teste
 
 **Atenção: o que está aqui foi informado pela pessoa dona do projeto e NÃO foi verificado por nós.**
 As fotos chegaram como capturas de tela (sem link nem ID do Pexels e sem o nome do fotógrafo; o campo veio como `[nome do fotógrafo]`, em branco). Antes do lançamento é preciso localizar cada foto no Pexels, conferir a licença e preencher o fotógrafo.

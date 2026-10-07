@@ -72,7 +72,8 @@ MVP = só Shopee, só um nicho, funcionalidades 1, 2 e 3.
 ```
 ├── CLAUDE.md · LANCAMENTO.md · docs/score.md · .env.example
 ├── drizzle/                     # migrações SQL
-├── scripts/job-daily.ts         # job diário local
+├── assets/fonts · assets/photos # fontes OFL; fotos de TESTE (uso interno)
+├── scripts/                     # job-daily.ts (job local), preview-pins.ts (exemplos dos estilos)
 ├── tests/e2e/                   # Playwright
 └── src/
     ├── app/                     # rotas Next (/, /precos, /login, /radar, /produto/[id], /conta,
@@ -83,7 +84,7 @@ MVP = só Shopee, só um nicho, funcionalidades 1, 2 e 3.
     ├── auth/                    # AuthProvider: dev-auth, supabase-auth (stub)
     ├── billing/                 # BillingProvider: mock-billing, asaas-billing; BillingService
     ├── entitlements/            # limites do plano grátis x pro
-    ├── generator/               # GeneratorService, links (mock/shopee), pin-image (SVG→PNG)
+    ├── generator/               # GeneratorService, links (mock/shopee), photos (teste/shopee), pin-design/ (5 estilos), pin-image (SVG→PNG)
     ├── jobs/                    # SnapshotJob, dailySalesFromSnapshots
     ├── services/                # RadarService (radar e ficha)
     ├── components/ · lib/       # UI; env, container (monta tudo), session, format
@@ -93,7 +94,7 @@ Regra de dependência: `app → services/billing/entitlements/jobs → (data, do
 
 ## Estado da implementação
 
-Pronto e testado (`npm test`: 74 testes; `npm run test:e2e`: 4 fluxos): radar com filtro por categoria e ordenação (score / mais vendidos / em alta), ficha do produto com score e detalhamento, plano grátis (top 10, 5 fichas/dia, detalhamento bloqueado) x Pro (tudo liberado), login simulado, assinatura simulada (Pix/boleto/cartão), webhooks idempotentes, job diário, **gerador de pins** (ver abaixo).
+Pronto e testado (`npm test`: 96 testes; `npm run test:e2e`: 5 fluxos): radar com filtro por categoria e ordenação (score / mais vendidos / em alta), ficha do produto com score e detalhamento, plano grátis (top 10, 5 fichas/dia, detalhamento bloqueado) x Pro (tudo liberado), login simulado, assinatura simulada (Pix/boleto/cartão), webhooks idempotentes, job diário, **gerador de pins** (ver abaixo).
 Não feito: alertas, publicação automática no Pinterest, integrações reais, coleta de CPF/CNPJ para o Asaas, páginas legais.
 
 Comandos: `npm run dev` · `npm run build && npm start` · `npm test` · `npm run typecheck` · `npm run test:e2e` · `npm run job:daily` · `npm run db:generate`.
@@ -101,12 +102,15 @@ Detalhes da camada de dados e do score continuam nas seções abaixo e em `docs/
 
 ## Gerador de pins (funcionalidade 5)
 
-Da ficha do produto: **link de afiliado + legenda + imagem 1000×1500 (2:3)** para o Pinterest. Publicação é **manual** (baixar, copiar). Sem publicação automática.
+Da ficha do produto: **link de afiliado + legenda + imagem 1000×1500 (2:3)** para o Pinterest, com **5 estilos** à escolha na tela do gerador. Publicação é **manual** (baixar, copiar). Sem publicação automática.
 
-- **Limite:** plano grátis `FREE_PINS_PER_DAY` (padrão **1**) produtos distintos por dia; trocar o tom do mesmo produto no mesmo dia **não** gasta outro. Pro ilimitado. Checagem protegida por `pg_advisory_xact_lock` por usuário.
-- **Link:** interface `AffiliateLinkProvider`. Mock gera `https://afiliado-demo.invalid/...` (TLD reservado, nunca resolve) com `subIds` `[pinterest, categoria, id-do-pin]` para saber qual pin vendeu. O link do dia é reaproveitado ao trocar o tom.
-- **Legenda:** só **templates** (`src/domain/generator/caption.ts`, 3 tons), determinística, sem custo. Título ≤ 100 e descrição ≤ 500 caracteres. **Regras de conteúdo (testadas):** sempre inclui o aviso de afiliado e `#publi`; só afirma nota/avaliações/vendas quando os dados sustentam (nota ≥ 4,5 com ≥ 10 avaliações; vendas ≥ 50, arredondadas **para baixo**); nunca promete "frete grátis", "melhor do Brasil" etc.; **a comissão nunca aparece** na legenda nem na imagem. Um gerador por LLM seria outra implementação de `CaptionGenerator` (pago: só no `LANCAMENTO.md`).
-- **Imagem:** SVG → PNG com `@resvg/resvg-js` e fonte DejaVu embutida em `assets/fonts` (não depende de fontes do sistema). Rota `/api/pin/[id]` regenera o PNG a partir da linha salva em `generated_pins` (snapshot do produto no momento da geração), **só para o dono**. Sem serviço de armazenamento. Hoje desenha uma ilustração ("imagem ilustrativa"); com dados reais entra a foto do produto.
+- **Limite:** plano grátis `FREE_PINS_PER_DAY` (padrão **1**) produtos distintos por dia; trocar o **tom ou o estilo** do mesmo produto no mesmo dia **não** gasta outro. Pro ilimitado. Checagem protegida por `pg_advisory_xact_lock` por usuário.
+- **Link:** interface `AffiliateLinkProvider`. Mock gera `https://afiliado-demo.invalid/...` (TLD reservado, nunca resolve) com `subIds` `[pinterest, categoria, id-do-pin]` para saber qual pin vendeu. O link do dia é reaproveitado ao trocar tom/estilo.
+- **Legenda:** só **templates** (`src/domain/generator/caption.ts`, 3 tons), determinística, sem custo. Título ≤ 100 e descrição ≤ 500 caracteres. **Regras de conteúdo (testadas):** sempre inclui o aviso de afiliado e `#publi`; só afirma nota/avaliações/vendas quando os dados sustentam (`claimsFor`: nota ≥ 4,5 com ≥ 10 avaliações; vendas ≥ 50, arredondadas **para baixo**); nunca promete "frete grátis", "melhor do Brasil" etc.; **a comissão nunca aparece** na legenda nem na imagem. Um gerador por LLM seria outra implementação de `CaptionGenerator` (pago: só no `LANCAMENTO.md`).
+- **Imagem (para o COMPRADOR):** SVG → PNG com `@resvg/resvg-js`; fontes **Poppins** e **Pacifico** (OFL) embutidas em `assets/fonts`. Estilos em `src/generator/pin-design/`: `minimalista`, `vibrante`, `achadinho`, `emalta` (escuro) e `emaltaclaro`. Foto grande, título curto com benefício do tipo de produto (`headlineFor`), preço em selo, no máximo uma prova social. Título ajustado por `fitHeadline` (sempre dentro da margem; teste varre todos os produtos × estilos).
+- **"Em alta":** só é oferecido quando a regra de tendência é cumprida (`claimsFor().trendPct`: ≥ 20 vendas em 7 dias, ≥ 50 em 30 e ritmo diário da semana ≥ 30% acima da média de 30 dias). A imagem mostra **só** "+N vendidos em 30 dias"; o **percentual e o gráfico de tendência ficam apenas na tela da plataforma** (caixa "Tendência de vendas" no gerador), nunca no pin.
+- **Foto do produto:** interface `PhotoProvider` (`src/generator/photos.ts`). **Produção: foto do produto da Shopee** (`imageUrl`; `ShopeePhotoProvider` é stub até haver acesso). Local: `TestPhotoProvider` usa as fotos de **teste** em `assets/photos` (**uso interno, nunca em nada público**; ver `assets/photos/LICENSES.md`) e **recusa** produto que não seja de demonstração. Produto real sem foto disponível → a rota responde 502; nunca se desenha foto provisória num pin de verdade.
+- **Dados:** `generated_pins` guarda um retrato do produto no momento da geração (preço, nota, vendas 7d/30d, `imageUrl`, fonte, estilo, tom). A rota `/api/pin/[id]` regenera o PNG a partir da linha, **só para o dono**. Sem serviço de armazenamento.
 
 ## Interface da camada de dados (contrato)
 
@@ -152,6 +156,7 @@ Pesos, `k`, limites e travas ficam em `src/domain/scoring/config.ts`. São **hip
 - Todo dado de mock é determinístico (seed fixa) e marcado como `source: "mock"`; a UI exibe aviso "dados de demonstração" enquanto `DATA_SOURCE=mock`.
 - Qualquer mudança na fórmula atualiza `docs/score.md` e os testes no mesmo commit.
 - Segredos só em variáveis de ambiente; `.env.example` versionado, `.env` nunca.
+- **`assets/photos` são fotos de teste, de uso interno: nunca em nada público (site, landing, redes sociais).** Só o `TestPhotoProvider` lê essa pasta, e só para produtos de demonstração.
 
 ## Nicho "casa": categorias
 

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { BILLING_TYPES, type BillingType } from "@/billing";
 import { MOCK_WEBHOOK_TOKEN } from "@/billing/mock-billing";
 import { TONES, type Tone } from "@/domain/generator/caption";
+import { isPinStyle } from "@/generator/pin-design";
 import { getContainer } from "@/lib/container";
 import { clearSessionCookie, requireUser, setSessionCookie } from "@/lib/session";
 
@@ -71,9 +72,11 @@ export async function generatePinAction(formData: FormData) {
   const c = await getContainer();
   const productId = String(formData.get("productId"));
   const tone = String(formData.get("tone"));
-  if (!(TONES as readonly string[]).includes(tone)) redirect(`/gerador/${productId}`);
+  const style = String(formData.get("style") ?? "minimalista");
+  if (!(TONES as readonly string[]).includes(tone) || !isPinStyle(style)) redirect(`/gerador/${productId}`);
   const plan = await c.billing.planFor(user.id);
-  const r = await c.generator.generate(user.id, plan, productId, tone as Tone);
+  const r = await c.generator.generate(user.id, plan, productId, tone as Tone, style);
   if (r.status === "not_found") redirect("/gerador");
-  redirect(`/gerador/${productId}${r.status === "limit" ? "?limite=1" : ""}`);
+  const flag = r.status === "limit" ? "?limite=1" : r.status === "style_unavailable" ? "?estilo=indisponivel" : "";
+  redirect(`/gerador/${productId}${flag}`);
 }

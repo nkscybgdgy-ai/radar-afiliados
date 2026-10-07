@@ -4,6 +4,7 @@ import { createBillingProvider } from "@/billing";
 import { createProductSource, type ProductSource } from "@/data";
 import { GeneratorService } from "@/generator/generator.service";
 import { createLinkProvider } from "@/generator/links";
+import { createPhotoProvider, type PhotoProvider } from "@/generator/photos";
 import { createDb, type Db, type DbHandle } from "@/db";
 import { EntitlementsService } from "@/entitlements/entitlements.service";
 import { SnapshotJob } from "@/jobs/daily-snapshot";
@@ -20,6 +21,7 @@ export interface Container {
   entitlements: EntitlementsService;
   snapshotJob: SnapshotJob;
   generator: GeneratorService;
+  photos: PhotoProvider;
   close(): Promise<void>;
 }
 
@@ -46,6 +48,7 @@ export async function buildContainer(
       now,
     ),
     snapshotJob: new SnapshotJob(handle.db, source, now),
+    photos: createPhotoProvider(env),
     generator: new GeneratorService(handle.db, radar, createLinkProvider(env), env.FREE_PINS_PER_DAY, now),
     close: handle.close,
   };

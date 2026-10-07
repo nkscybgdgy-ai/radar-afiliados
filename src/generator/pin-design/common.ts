@@ -7,6 +7,11 @@ export const H = 1500; // 2:3, proporção recomendada do Pinterest
 
 export const STYLE_IDS = ["minimalista", "vibrante", "achadinho", "emalta", "emaltaclaro"] as const;
 export type PinStyle = (typeof STYLE_IDS)[number];
+/** Estilos "em alta" só são oferecidos quando a regra de tendência da legenda é cumprida. */
+export const TREND_STYLES: readonly PinStyle[] = ["emalta", "emaltaclaro"];
+export const styleAvailable = (style: PinStyle, c: Claims): boolean => !TREND_STYLES.includes(style) || c.trendPct !== undefined;
+export const availableStyles = (c: Claims): PinStyle[] => STYLE_IDS.filter((s) => styleAvailable(s, c));
+
 export const STYLE_LABELS: Record<PinStyle, string> = {
   minimalista: "Minimalista claro",
   vibrante: "Colorido vibrante",

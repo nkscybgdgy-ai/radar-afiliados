@@ -15,6 +15,13 @@
       "when": 1791249388972,
       "tag": "0001_mighty_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791411433351,
+      "tag": "0002_smiling_ser_duncan",
+      "breakpoints": true
     }
   ]
 }

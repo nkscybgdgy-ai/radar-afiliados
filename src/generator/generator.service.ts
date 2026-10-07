@@ -2,17 +2,19 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Plan } from "@/billing/billing.service";
 import { schema, type Db } from "@/db";
-import { TemplateCaptionGenerator, type CaptionGenerator, type Tone } from "@/domain/generator/caption";
+import { claimsFor, TemplateCaptionGenerator, type CaptionGenerator, type Tone } from "@/domain/generator/caption";
 import type { HomeCategory } from "@/domain/types";
 import { todayBR } from "@/lib/dates";
 import type { RadarService } from "@/services/radar.service";
 import type { AffiliateLinkProvider } from "./links";
+import { styleAvailable, type PinStyle } from "./pin-design";
 
 export type PinRow = typeof schema.generatedPins.$inferSelect;
 
 export type GenerateResult =
   | { status: "ok"; pin: PinRow; used: number; limit: number | null }
   | { status: "limit"; used: number; limit: number }
+  | { status: "style_unavailable" }
   | { status: "not_found" };
 
 export class GeneratorService {
@@ -29,9 +31,11 @@ export class GeneratorService {
    * Gera (ou atualiza) o pin do produto no dia. Plano grátis: `freePerDay` produtos distintos por dia;
    * trocar o tom do mesmo produto no mesmo dia não gasta outro. Pro: ilimitado.
    */
-  async generate(userId: string, plan: Plan, productId: string, tone: Tone): Promise<GenerateResult> {
+  async generate(userId: string, plan: Plan, productId: string, tone: Tone, style: PinStyle = "minimalista"): Promise<GenerateResult> {
     const sheet = await this.radar.getProductSheet(productId);
     if (!sheet) return { status: "not_found" };
+    const claims = claimsFor({ rating: sheet.product.ratingStar, ratingCount: sheet.product.ratingCount, sales30d: sheet.sales30d, sales7d: sheet.sales7d });
+    if (!styleAvailable(style, claims)) return { status: "style_unavailable" };
 
     const day = todayBR(this.now());
     const todayRows = await this.db
@@ -66,6 +70,7 @@ export class GeneratorService {
       productId,
       day,
       tone,
+      style,
       affiliateUrl,
       subIds,
       title: caption.title,
@@ -76,6 +81,10 @@ export class GeneratorService {
       priceCents: p.priceCents,
       ratingX10: Math.round(p.ratingStar * 10),
       ratingCount: p.ratingCount,
+      sales30d: sheet.sales30d,
+      sales7d: sheet.sales7d,
+      imageUrl: p.imageUrl,
+      productSource: p.source,
     };
 
     // Trava por usuário: duas gerações simultâneas não furam o limite do plano grátis.
@@ -94,7 +103,7 @@ export class GeneratorService {
         .values(values)
         .onConflictDoUpdate({
           target: [schema.generatedPins.userId, schema.generatedPins.productId, schema.generatedPins.day],
-          set: { tone, title: values.title, description: values.description, hashtags: values.hashtags, priceCents: values.priceCents, productName: values.productName, ratingX10: values.ratingX10, ratingCount: values.ratingCount },
+          set: { tone, style, title: values.title, description: values.description, hashtags: values.hashtags, priceCents: values.priceCents, productName: values.productName, ratingX10: values.ratingX10, ratingCount: values.ratingCount, sales30d: values.sales30d, sales7d: values.sales7d, imageUrl: values.imageUrl, productSource: values.productSource },
         })
         .returning();
       return { status: "ok", pin: pin!, used: used + 1, limit: plan === "pro" ? null : this.freePerDay };

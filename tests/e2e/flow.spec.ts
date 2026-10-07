@@ -85,3 +85,31 @@ test("gerador: 1 pin/dia no grátis, imagem PNG, só o dono acessa", async ({ pa
   await page.goto(`/gerador/${productId(1)}`);
   await expect(page.getByText("Você já usou o pin de hoje.")).toBeVisible();
 });
+
+test("gerador: estilos no seletor; 'Em alta' só para produto em alta", async ({ page }) => {
+  // org-006 (Cesto) não está em alta: os dois "Em alta" ficam desabilitados
+  await login(page, email());
+  await page.goto("/gerador/org-006");
+  await expect(page.getByLabel(/Em alta \(escuro\)/)).toBeDisabled();
+  await expect(page.getByLabel(/Em alta \(claro\)/)).toBeDisabled();
+  await expect(page.getByLabel(/Achadinho/)).toBeEnabled();
+  await expect(page.getByText("Este produto não está em alta")).toBeVisible();
+  await page.getByLabel(/Achadinho/).check();
+  await page.getByRole("button", { name: "Gerar pin" }).click();
+  await expect(page.getByText(/Estilo: Achadinho/)).toBeVisible();
+  const img = page.locator("img[alt^='Pin:']");
+  await expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(1000);
+
+  // coz-001 (Kit Potes) está em alta: todos os 5 liberados; usuário novo escolhe "Em alta (escuro)"
+  await page.context().clearCookies();
+  await login(page, email());
+  await page.goto("/gerador/coz-001");
+  for (const label of [/Minimalista/, /Colorido vibrante/, /Achadinho/, /Em alta \(escuro\)/, /Em alta \(claro\)/]) await expect(page.getByLabel(label)).toBeEnabled();
+  await expect(page.getByText(/\+\d+% acima da média/)).toBeVisible(); // percentual só na plataforma
+  await page.getByLabel(/Em alta \(escuro\)/).check();
+  await page.getByRole("button", { name: "Gerar pin" }).click();
+  await expect(page.getByText(/Estilo: Em alta \(escuro\)/)).toBeVisible();
+  const own = await page.request.get((await page.locator("img[alt^='Pin:']").getAttribute("src"))!);
+  expect(own.status()).toBe(200);
+  expect(own.headers()["content-type"]).toBe("image/png");
+});

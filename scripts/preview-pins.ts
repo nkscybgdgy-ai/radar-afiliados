@@ -5,16 +5,14 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Resvg } from "@resvg/resvg-js";
 import { MockProductSource } from "../src/data/mock/mock-source";
 import { claimsFor } from "../src/domain/generator/caption";
-import { buildPinSvgByStyle, STYLE_IDS } from "../src/generator/pin-design";
+import { STYLE_IDS } from "../src/generator/pin-design";
+import { renderPinPng } from "../src/generator/pin-image";
 import type { Photo } from "../src/generator/pin-design";
 
 const out = process.argv[2]!;
 const photosDir = process.argv[3]; // opcional: pasta com fotos por categoria (<categoria>.jpg)
-const F = join(process.cwd(), "assets/fonts");
-const fonts = ["Poppins_500Medium", "Poppins_600SemiBold", "Poppins_700Bold", "Poppins_800ExtraBold", "Pacifico_400Regular"].map((f) => join(F, `${f}.ttf`));
 const src = new MockProductSource();
 const ids = process.argv.slice(4).length ? process.argv.slice(4) : ["coz-011"];
 for (const id of ids) {
@@ -28,7 +26,7 @@ for (const id of ids) {
   const input = { productId: p.id, productName: p.name, category: p.category, priceCents: p.priceCents, rating: p.ratingStar, ratingCount: p.ratingCount, sales30d: s30, sales7d: s7, photo };
   console.log(id, p.name, { s30, s7 }, claimsFor({ rating: p.ratingStar, ratingCount: p.ratingCount, sales30d: s30, sales7d: s7 }));
   for (const style of STYLE_IDS) {
-    const png = new Resvg(buildPinSvgByStyle(style, input), { font: { fontFiles: fonts, loadSystemFonts: false, defaultFontFamily: "Poppins" } }).render().asPng();
+    const png = renderPinPng(style, input);
     writeFileSync(join(out, `${id}-${style}.png`), png);
   }
 }
