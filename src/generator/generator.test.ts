@@ -202,3 +202,21 @@ describe("pin: título por benefício, prova social e botão", () => {
     expect(cx).toBeLessThan(70 + 380 - 100);
   });
 });
+
+describe("títulos nunca passam da borda (todos os produtos × todos os estilos)", () => {
+  it("largura estimada de cada linha de título ≤ 875 px (margem direita preservada)", async () => {
+    const { MockProductSource } = await import("@/data/mock/mock-source");
+    const { items } = await new MockProductSource().listProducts({ limit: 100 });
+    const bad: string[] = [];
+    for (const p of items) {
+      for (const style of STYLE_IDS) {
+        const svg = buildPinSvgByStyle(style, { productId: p.id, productName: p.name, category: p.category, priceCents: p.priceCents, rating: p.ratingStar, ratingCount: p.ratingCount, sales30d: 1500, sales7d: 600, photo: null });
+        for (const m of svg.matchAll(/<text x="70" y="[\d.]+" font-size="(\d+)" font-weight="800"[^>]*>([^<]*)<\/text>/g)) {
+          const w = m[2]!.length * Number(m[1]) * 0.58;
+          if (w > 875) bad.push(`${p.id} ${style}: "${m[2]}" ${Math.round(w)}px`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+});

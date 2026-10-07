@@ -105,6 +105,19 @@ export const headlineFor = (category: HomeCategory, productId: string, productNa
   return list[hashString(productId) % list.length]!;
 };
 
+/**
+ * Escolhe o maior corpo (da lista) em que o título cabe em até 2 linhas, sem reticências.
+ * `em` ≈ largura média do caractere da Poppins ExtraBold (0,58 do corpo).
+ */
+export function fitHeadline(text: string, maxWidth: number, sizes: number[], em = 0.58): { lines: string[]; size: number } {
+  for (const size of sizes) {
+    const lines = wrapText(text, size, maxWidth, 2, em);
+    if (lines.length <= 2 && !lines.some((l) => l.endsWith("…"))) return { lines, size };
+  }
+  const size = sizes[sizes.length - 1]!;
+  return { lines: wrapText(text, size, maxWidth, 2, em), size };
+}
+
 export function priceParts(cents: number): { int: string; dec: string } {
   const int = new Intl.NumberFormat("pt-BR").format(Math.floor(cents / 100));
   return { int, dec: String(cents % 100).padStart(2, "0") };
